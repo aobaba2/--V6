@@ -20,38 +20,134 @@ export interface KLineData {
   volume: number;
 }
 
-export const analyzeMarket = async (symbol: string, klines: KLineData[], currentData: MarketData) => {
+export interface InfluencerInsight {
+  name: string;
+  avatar: string;
+  sentiment: 'bullish' | 'bearish' | 'neutral';
+  content: string;
+  time: string;
+}
+
+export const analyzeMarket = async (
+  symbol: string, 
+  klines: KLineData[], 
+  currentData: MarketData, 
+  intervalLabel: string,
+  influencerInsights: InfluencerInsight[],
+  followedInfluencers: string[] = []
+) => {
   const prompt = `
-    你是一个专业的加密货币交易分析师。请分析以下 ${symbol} 的市场数据并提供交易建议。
+    你是一位拥有 10 年经验的加密货币顶级交易员，同时也是一位敏锐的市场情绪分析师。
+    你的任务是结合【实时行情数据】、【币安顶级博主动态】以及【全网实时新闻/广场动态】，为用户提供一份全方位的综合决策报告。
     
-    当前市场概况:
-    - 价格: ${currentData.price}
-    - 24h 涨跌幅: ${currentData.priceChangePercent}%
-    - 24h 最高: ${currentData.high}
-    - 24h 最低: ${currentData.low}
-    - 成交量: ${currentData.volume}
+    输入信息：
+    1. 交易对: ${symbol} (${intervalLabel})
+    2. 现价: ${currentData.price} (24h涨跌: ${currentData.priceChangePercent}%)
+    3. 最近 K 线走势: ${klines.slice(-10).map(k => k.close).join(', ')}
+    4. 币安博主最新动态:
+       ${influencerInsights.map(i => `- 【${i.name}】(${i.sentiment}): "${i.content}"`).join('\n')}
+    5. 用户关注的博主列表: ${followedInfluencers.join(', ')}
 
-    最近的价格走势 (K线数据):
-    ${klines.slice(-20).map(k => `时间: ${new Date(k.time).toLocaleString()}, 开: ${k.open}, 高: ${k.high}, 低: ${k.low}, 收: ${k.close}`).join('\n')}
+    任务要求：
+    1. 使用 Google Search 搜索关于 ${symbol} 的最新新闻、币安广场 (Binance Square) 的热门讨论、社区情绪以及该币种的基本面信息。
+    2. 特别关注用户关注的博主：${followedInfluencers.join(', ')}。搜索他们在币安广场或社交媒体上关于 ${symbol} 的最新观点。
+    3. 综合研判：结合技术面（K线）、消息面（博主观点）和基本面（实时新闻），判断当前是否存在“共振”或“背离”。
+    4. 避坑指南：如果博主们集体看涨但新闻面出现重大利空，请提醒用户注意风险。
+    5. 最终共识：给出结合了社交情绪、实时新闻和技术指标的最终操作建议。
 
-    请提供以下分析：
-    1. 趋势分析 (看涨/看跌/震荡)
-    2. 关键支撑位与阻力位
-    3. 风险评估
-    4. 操作建议 (买入/卖出/观望) 及理由
-    5. 止损与止盈参考位
+    请按以下格式输出（使用 Markdown）：
 
-    请以专业、客观的语气回答，并包含必要的风险提示。
+    ### 📰 实时资讯 & 广场动态 (Binance Square)
+    - 总结最新的 3-5 条关于该币种的重大新闻或社区热门讨论。
+    - **重点博主动态**：总结 ${followedInfluencers.join(', ')} 的最新观点（如果能搜到）。
+    - 包含该币种的简单背景介绍（如果是新币或非主流币）。
+
+    ### 🌐 市场综合共识
+    > [技术面、情绪面与新闻面是否达成一致？] - 给出最终的信心指数 (0-100%)。
+
+    ### 📣 博主观点汇总
+    - 总结博主们的整体倾向（看多派 vs 看空派）。
+
+    ### 🧠 深度逻辑拆解
+    - 结合博主观点、实时新闻和 K 线走势，分析当前最真实的盘面意图。
+
+    ### 🎯 最终实战建议
+    - **操作方向**：[做多 / 做空 / 观望]
+    - **参考进场位**：[具体价格]
+    - **参考止盈位**：[具体价格]
+    - **参考止损位**：[具体价格]
+
+    ### 💡 给小白的真心话
+    - (用最直白的话告诉新手：现在是该跟着博主冲，还是该等？风险大不大？)
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
       contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }]
+      }
     });
     return response.text;
   } catch (error) {
     console.error("AI Analysis Error:", error);
     return "分析失败，请稍后再试。";
+  }
+};
+
+export const fetchInfluencerInsights = async (influencers: string[]) => {
+  if (influencers.length === 0) return [];
+
+  const prompt = `
+    你是一位专业的加密货币社交媒体分析师。
+    请使用 Google Search 搜索以下币安著名博主在币安广场 (Binance Square) 或社交媒体上的最新动态、观点和市场分析：
+    博主列表: ${influencers.join(', ')}
+
+    任务要求：
+    1. 针对列表中的每一位博主，搜索他们最近 24 小时内的最新言论。
+    2. 提取他们的核心观点、对市场的看涨/看跌情绪。
+    3. 如果搜不到某位博主的最新动态，请跳过。
+
+    请按以下 JSON 格式输出（仅输出 JSON 数组）：
+    [
+      {
+        "name": "博主名称",
+        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=随机字符",
+        "sentiment": "bullish" | "bearish" | "neutral",
+        "content": "博主最新观点的简短总结",
+        "time": "时间描述（如：2小时前）"
+      }
+    ]
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              avatar: { type: Type.STRING },
+              sentiment: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] },
+              content: { type: Type.STRING },
+              time: { type: Type.STRING }
+            },
+            required: ['name', 'avatar', 'sentiment', 'content', 'time']
+          }
+        }
+      }
+    });
+    
+    return JSON.parse(response.text || "[]") as InfluencerInsight[];
+  } catch (error) {
+    console.error("Error fetching influencer insights:", error);
+    return [];
   }
 };

@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Stores user membership and usage data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["free", "pro", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "aiAnalysisCount": { "type": "number" },
+        "mockTradingEnabled": { "type": "boolean" },
+        "favorites": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "followedInfluencers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hiddenInfluencers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Individual user profile document."
+    }
+  }
+}
