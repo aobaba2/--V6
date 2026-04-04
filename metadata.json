@@ -1,0 +1,5 @@
+{
+  "name": "Binance AI 炒币助手",
+  "description": "基于币安实时数据与 Gemini AI 的加密货币行情分析与决策辅助工具。",
+  "requestFramePermissions": []
+}
