@@ -43,8 +43,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow read only for owner or admin
+      // Allow read/list only for owner or admin
       allow read: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       
       // Allow create if owner and setting initial role to 'free'
       allow create: if isOwner(userId) && 

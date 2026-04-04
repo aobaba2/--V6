@@ -18,7 +18,8 @@ import {
   Star,
   X,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -35,6 +36,7 @@ import { analyzeMarket, fetchInfluencerInsights, MarketData, KLineData, Influenc
 import Markdown from 'react-markdown';
 import { CandlestickChart } from './components/CandlestickChart';
 import { MockTrading } from './components/MockTrading';
+import { AdminDashboard } from './components/AdminDashboard';
 import { auth, db, signIn, logOut, getOrCreateProfile, UserProfile, UserRole } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
@@ -67,6 +69,8 @@ export default function App() {
   const [realtimeInsights, setRealtimeInsights] = useState<InfluencerInsight[]>([]);
   const [fetchingInsights, setFetchingInsights] = useState(false);
   const [lastInsightUpdate, setLastInsightUpdate] = useState<number | null>(null);
+  const [isAdminView, setIsAdminView] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'market' | 'chart' | 'insights'>('chart');
   
   // Auth & Profile State
   const [user, setUser] = useState<User | null>(null);
@@ -366,69 +370,98 @@ export default function App() {
 
   const currentCoin = marketData[selectedSymbol];
 
+  if (isAdminView && profile?.role === 'admin') {
+    return <AdminDashboard onBack={() => setIsAdminView(false)} currentUserProfile={profile} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans selection:bg-yellow-500/30">
       {/* Header */}
       <header className="border-b border-gray-800 bg-[#181a20] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
-              <Activity className="text-black w-5 h-5" />
+            <div className="w-7 h-7 md:w-8 md:h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
+              <Activity className="text-black w-4 h-4 md:w-5 md:h-5" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">Binance AI <span className="text-yellow-500">炒币助手</span></h1>
+            <h1 className="text-lg md:text-xl font-bold tracking-tight">Binance AI <span className="text-yellow-500 hidden sm:inline">炒币助手</span><span className="text-yellow-500 sm:hidden">助手</span></h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {authLoading ? (
-              <div className="w-8 h-8 rounded-full bg-gray-800 animate-pulse" />
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-800 animate-pulse" />
             ) : user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 <div className="text-right hidden sm:block">
                   <div className="text-xs font-bold">{profile?.displayName}</div>
                   <div className={cn(
                     "text-[10px] px-1.5 py-0.5 rounded font-bold uppercase",
-                    profile?.role === 'pro' ? "bg-yellow-500/20 text-yellow-500" : "bg-gray-500/20 text-gray-400"
+                    profile?.role === 'admin' ? "bg-yellow-500/20 text-yellow-500" :
+                    profile?.role === 'pro' ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"
                   )}>
-                    {profile?.role === 'pro' ? '收费会员' : '免费会员'}
+                    {profile?.role === 'admin' ? '管理员' : profile?.role === 'pro' ? '收费会员' : '免费会员'}
                   </div>
                 </div>
+                {profile?.role === 'admin' && (
+                  <button 
+                    onClick={() => setIsAdminView(true)}
+                    className="p-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded border border-yellow-500/30 transition-all"
+                    title="进入后台管理"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                  </button>
+                )}
                 <button onClick={logOut} className="group relative">
-                  <img src={profile?.photoURL} alt="avatar" className="w-8 h-8 rounded-full border border-gray-700 group-hover:border-yellow-500 transition-colors" />
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-[#181a20] rounded-full" />
+                  <img src={profile?.photoURL} alt="avatar" className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-gray-700 group-hover:border-yellow-500 transition-colors" />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-[#181a20] rounded-full" />
                 </button>
               </div>
             ) : (
               <button 
                 onClick={signIn}
-                className="bg-yellow-500 text-black px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-yellow-400 transition-colors"
+                className="bg-yellow-500 text-black px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-yellow-400 transition-colors"
               >
-                登录 / 注册
+                登录
               </button>
             )}
-            <div className="relative hidden md:block">
+            <div className="relative hidden lg:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input 
                 type="text" 
                 placeholder="搜索币种..." 
-                className="bg-[#2b2f36] border-none rounded-full py-1.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-yellow-500 outline-none w-64"
+                className="bg-[#2b2f36] border-none rounded-full py-1.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-yellow-500 outline-none w-48 xl:w-64"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <button 
               onClick={() => { fetchMarketData(); fetchKlines(selectedSymbol, interval); }}
-              className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+              className="p-1.5 md:p-2 hover:bg-gray-800 rounded-full transition-colors"
             >
-              <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
+              <RefreshCw className={cn("w-4 h-4 md:w-5 md:h-5", loading && "animate-spin")} />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="max-w-7xl mx-auto px-2 md:px-4 py-4 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 pb-24 lg:pb-6">
         
         {/* Sidebar - Market List */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden">
+        <div className={cn(
+          "lg:col-span-3 space-y-4",
+          mobileTab !== 'market' && "hidden lg:block"
+        )}>
+          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden shadow-xl">
+            <div className="p-3 border-b border-gray-800 lg:hidden">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input 
+                  type="text" 
+                  placeholder="搜索币种..." 
+                  className="w-full bg-[#0b0e11] border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:border-yellow-500 outline-none"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
             <div className="border-b border-gray-800">
               <div className="flex">
                 <button 
@@ -460,7 +493,7 @@ export default function App() {
                 <span>最新价 / 涨跌幅</span>
               </div>
             </div>
-            <div className="divide-y divide-gray-800 max-h-[600px] overflow-y-auto custom-scrollbar">
+            <div className="divide-y divide-gray-800 max-h-[calc(100vh-250px)] lg:max-h-[600px] overflow-y-auto custom-scrollbar">
               {filteredSymbols.length > 0 ? filteredSymbols.map((coin) => (
                 <div
                   key={coin.symbol}
@@ -497,17 +530,17 @@ export default function App() {
                   )}
 
                   <button
-                    onClick={() => setSelectedSymbol(coin.symbol)}
+                    onClick={() => { setSelectedSymbol(coin.symbol); if (window.innerWidth < 1024) setMobileTab('chart'); }}
                     className="flex-1 p-4 pl-0 flex items-center justify-between text-left"
                   >
                     <div>
-                      <div className="font-bold">{coin.symbol.replace('USDT', '')}<span className="text-xs text-gray-500 ml-1">/USDT</span></div>
-                      <div className="text-[10px] text-gray-500">Vol: {parseFloat(coin.volume).toFixed(0)}</div>
+                      <div className="font-bold text-sm md:text-base">{coin.symbol.replace('USDT', '')}<span className="text-[10px] md:text-xs text-gray-500 ml-1">/USDT</span></div>
+                      <div className="text-[9px] md:text-[10px] text-gray-500">Vol: {parseFloat(coin.volume).toFixed(0)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-medium text-sm">{formatPrice(coin.price)}</div>
+                      <div className="font-mono font-medium text-xs md:text-sm">{formatPrice(coin.price)}</div>
                       <div className={cn(
-                        "text-[10px] font-bold flex items-center justify-end gap-0.5",
+                        "text-[9px] md:text-[10px] font-bold flex items-center justify-end gap-0.5",
                         parseFloat(coin.priceChangePercent) >= 0 ? "text-green-500" : "text-red-500"
                       )}>
                         {parseFloat(coin.priceChangePercent) >= 0 ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
@@ -536,7 +569,10 @@ export default function App() {
           </div>
 
           {/* Influencer Insights Section */}
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden">
+          <div className={cn(
+            "bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden shadow-xl",
+            mobileTab !== 'insights' && "hidden lg:block"
+          )}>
             <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-[#181a20] to-[#1e2329]">
               <h2 className="font-semibold flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-400" />
@@ -660,23 +696,26 @@ export default function App() {
         </div>
 
         {/* Main Content - Chart & Analysis */}
-        <div className="lg:col-span-9 space-y-6">
+        <div className={cn(
+          "lg:col-span-9 space-y-4 md:space-y-6",
+          mobileTab !== 'chart' && "hidden lg:block"
+        )}>
           
           {/* Price Header */}
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 p-6 flex flex-wrap items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#2b2f36] rounded-full flex items-center justify-center text-xl font-bold text-yellow-500">
+          <div className="bg-[#181a20] rounded-xl border border-gray-800 p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 md:gap-6 shadow-xl">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#2b2f36] rounded-full flex items-center justify-center text-lg md:text-xl font-bold text-yellow-500">
                 {selectedSymbol.charAt(0)}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold">{selectedSymbol}</h2>
-                  <span className="px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-400">现货</span>
+                  <h2 className="text-xl md:text-2xl font-bold">{selectedSymbol}</h2>
+                  <span className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400">现货</span>
                 </div>
-                <div className="flex items-center gap-4 mt-1">
-                  <span className="text-3xl font-mono font-bold text-yellow-500">{currentCoin ? formatPrice(currentCoin.price) : '---'}</span>
+                <div className="flex items-center gap-3 mt-0.5 md:mt-1">
+                  <span className="text-2xl md:text-3xl font-mono font-bold text-yellow-500">{currentCoin ? formatPrice(currentCoin.price) : '---'}</span>
                   <span className={cn(
-                    "px-2 py-1 rounded text-sm font-bold",
+                    "px-1.5 py-0.5 rounded text-xs md:text-sm font-bold",
                     currentCoin && parseFloat(currentCoin.priceChangePercent) >= 0 ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
                   )}>
                     {currentCoin ? formatPercent(currentCoin.priceChangePercent) : '0.00%'}
@@ -685,40 +724,40 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-8 w-full md:w-auto pt-4 md:pt-0 border-t border-gray-800 md:border-none">
               <div>
-                <div className="text-xs text-gray-500 mb-1">24h 最高</div>
-                <div className="font-mono text-sm">{currentCoin ? formatPrice(currentCoin.high) : '---'}</div>
+                <div className="text-[10px] text-gray-500 mb-0.5">24h 最高</div>
+                <div className="font-mono text-xs md:text-sm">{currentCoin ? formatPrice(currentCoin.high) : '---'}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">24h 最低</div>
-                <div className="font-mono text-sm">{currentCoin ? formatPrice(currentCoin.low) : '---'}</div>
+                <div className="text-[10px] text-gray-500 mb-0.5">24h 最低</div>
+                <div className="font-mono text-xs md:text-sm">{currentCoin ? formatPrice(currentCoin.low) : '---'}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">24h 成交额(USDT)</div>
-                <div className="font-mono text-sm">{(currentCoin ? parseFloat(currentCoin.volume) * parseFloat(currentCoin.price) / 1000000 : 0).toFixed(2)}M</div>
+                <div className="text-[10px] text-gray-500 mb-0.5">24h 成交额</div>
+                <div className="font-mono text-xs md:text-sm">{(currentCoin ? parseFloat(currentCoin.volume) * parseFloat(currentCoin.price) / 1000000 : 0).toFixed(2)}M</div>
               </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">更新时间</div>
-                <div className="font-mono text-sm">{new Date().toLocaleTimeString()}</div>
+              <div className="hidden sm:block">
+                <div className="text-[10px] text-gray-500 mb-0.5">更新时间</div>
+                <div className="font-mono text-xs md:text-sm">{new Date().toLocaleTimeString()}</div>
               </div>
             </div>
           </div>
 
           {/* Chart Section */}
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold flex items-center gap-2">
+          <div className="bg-[#181a20] rounded-xl border border-gray-800 p-4 md:p-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h3 className="font-semibold flex items-center gap-2 text-sm md:text-base">
                 <TrendingUp className="w-4 h-4 text-yellow-500" />
                 K线走势图
               </h3>
-              <div className="flex flex-wrap gap-2 justify-end">
+              <div className="flex overflow-x-auto gap-1.5 pb-2 sm:pb-0 custom-scrollbar">
                 {INTERVALS.map(t => (
                   <button 
                     key={t.value} 
                     onClick={() => setIntervalState(t.value)}
                     className={cn(
-                      "px-3 py-1 rounded text-xs transition-colors whitespace-nowrap",
+                      "px-2.5 py-1 rounded text-[10px] md:text-xs transition-colors whitespace-nowrap",
                       t.value === interval ? "bg-yellow-500 text-black font-bold" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                     )}
                   >
@@ -728,68 +767,70 @@ export default function App() {
               </div>
             </div>
             
-            <div className="w-full">
+            <div className="w-full h-[300px] md:h-[450px]">
               <CandlestickChart data={klines} loading={loading} />
             </div>
           </div>
 
           {/* AI Analysis & Mock Trading Section */}
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden">
-            <div className="border-b border-gray-800 flex items-center justify-between bg-[#1e2329] px-6">
+          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden shadow-xl">
+            <div className="border-b border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between bg-[#1e2329]">
               <div className="flex">
                 <button
                   onClick={() => setActiveTab('analysis')}
                   className={cn(
-                    "px-6 py-4 text-sm font-bold transition-all relative flex items-center gap-2",
+                    "flex-1 sm:flex-none px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold transition-all relative flex items-center justify-center gap-2",
                     activeTab === 'analysis' ? "text-purple-400" : "text-gray-500 hover:text-gray-300"
                   )}
                 >
-                  <BrainCircuit className="w-4 h-4" />
+                  <BrainCircuit className="w-3.5 h-3.5 md:w-4 md:h-4" />
                   AI 智能分析
                   {activeTab === 'analysis' && <motion.div layoutId="mainTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />}
                 </button>
                 <button
                   onClick={() => setActiveTab('trading')}
                   className={cn(
-                    "px-6 py-4 text-sm font-bold transition-all relative flex items-center gap-2",
+                    "flex-1 sm:flex-none px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold transition-all relative flex items-center justify-center gap-2",
                     activeTab === 'trading' ? "text-yellow-500" : "text-gray-500 hover:text-gray-300"
                   )}
                 >
-                  <ArrowRightLeft className="w-4 h-4" />
-                  模拟炒币 (实战)
+                  <ArrowRightLeft className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  模拟炒币
                   {activeTab === 'trading' && <motion.div layoutId="mainTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-yellow-500" />}
                 </button>
               </div>
               
               {activeTab === 'analysis' && (
-                <button
-                  onClick={handleAnalyze}
-                  disabled={analyzing || loading}
-                  className={cn(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    analyzing 
-                      ? "bg-gray-800 text-gray-500 cursor-not-allowed" 
-                      : "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 active:scale-95"
-                  )}
-                >
-                  {analyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <BrainCircuit className="w-3 h-3" />}
-                  {analyzing ? "分析中..." : "开始 AI 分析"}
-                </button>
+                <div className="p-2 sm:p-0 sm:pr-4">
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={analyzing || loading}
+                    className={cn(
+                      "w-full sm:w-auto px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all flex items-center justify-center gap-2",
+                      analyzing 
+                        ? "bg-gray-800 text-gray-500 cursor-not-allowed" 
+                        : "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 active:scale-95"
+                    )}
+                  >
+                    {analyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <BrainCircuit className="w-3 h-3" />}
+                    {analyzing ? "分析中..." : "开始 AI 分析"}
+                  </button>
+                </div>
               )}
             </div>
             
-            <div className="min-h-[500px] relative">
+            <div className="min-h-[400px] md:min-h-[500px] relative">
               <AnimatePresence mode="wait">
                 {activeTab === 'analysis' ? (
                   <motion.div 
                     key="analysis"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="p-6"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="p-4 md:p-6"
                   >
                     {analyzing ? (
-                      <div className="flex flex-col items-center justify-center py-24 gap-4">
+                      <div className="flex flex-col items-center justify-center py-16 md:py-24 gap-4">
                         <div className="flex gap-1">
                           {[0, 1, 2].map(i => (
                             <motion.div
@@ -800,51 +841,47 @@ export default function App() {
                             />
                           ))}
                         </div>
-                        <p className="text-sm text-gray-400">正在调取实时数据、币安广场动态及全网资讯...</p>
+                        <p className="text-[10px] md:text-sm text-gray-400 text-center">正在调取实时数据、币安广场动态及全网资讯...</p>
                       </div>
                     ) : analysisResult ? (
                       <div className="prose prose-invert max-w-none">
-                        <div className="bg-[#1e2329] rounded-lg p-6 border border-gray-700 shadow-inner">
+                        <div className="bg-[#1e2329] rounded-lg p-4 md:p-6 border border-gray-700 shadow-inner">
                           <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2 text-purple-400 font-bold">
-                              <Info className="w-4 h-4" />
+                            <div className="flex items-center gap-2 text-purple-400 font-bold text-xs md:text-sm">
+                              <Info className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               分析报告 - {selectedSymbol}
                             </div>
-                            <div className="flex gap-2">
-                              <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase">Square 广场</span>
-                              <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold uppercase">实时新闻</span>
-                            </div>
                           </div>
-                          <div className="markdown-body text-gray-300 leading-relaxed text-sm">
+                          <div className="markdown-body text-gray-300 leading-relaxed text-xs md:text-sm">
                             <Markdown>{analysisResult}</Markdown>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-24 text-gray-500 border-2 border-dashed border-gray-800 rounded-lg">
-                        <BrainCircuit className="w-12 h-12 mb-4 opacity-20" />
-                        <p>点击上方按钮，获取针对 {selectedSymbol} 的 AI 深度分析建议</p>
+                      <div className="flex flex-col items-center justify-center py-16 md:py-24 text-gray-500 border-2 border-dashed border-gray-800 rounded-lg">
+                        <BrainCircuit className="w-10 h-10 md:w-12 md:h-12 mb-4 opacity-20" />
+                        <p className="text-xs md:text-sm text-center px-4">点击上方按钮，获取针对 {selectedSymbol} 的 AI 深度分析建议</p>
                       </div>
                     )}
                   </motion.div>
                 ) : (
                   <motion.div
                     key="trading"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="h-[600px] relative"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="h-[500px] md:h-[600px] relative"
                   >
                     {profile?.role === 'free' && (
-                      <div className="absolute inset-0 bg-[#0b0e11]/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-8 text-center">
-                        <Lock className="w-16 h-16 text-yellow-500 mb-4" />
-                        <h3 className="text-xl font-bold mb-2">模拟炒币功能已锁定</h3>
-                        <p className="text-gray-400 text-sm mb-6 max-w-md">
+                      <div className="absolute inset-0 bg-[#0b0e11]/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 md:p-8 text-center">
+                        <Lock className="w-12 h-12 md:w-16 md:h-16 text-yellow-500 mb-4" />
+                        <h3 className="text-lg md:text-xl font-bold mb-2">模拟炒币功能已锁定</h3>
+                        <p className="text-gray-400 text-[10px] md:text-sm mb-6 max-w-md">
                           模拟炒币实战板块仅对收费会员开放。升级后即可使用 10,000 USDT 模拟金进行现货与合约实战演练。
                         </p>
                         <button 
                           onClick={() => alert('升级功能正在对接支付网关，请联系客服手动升级')}
-                          className="bg-yellow-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-900/20"
+                          className="bg-yellow-500 text-black px-6 py-2.5 md:px-8 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-900/20"
                         >
                           立即升级为收费会员
                         </button>
@@ -859,6 +896,40 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#181a20] border-t border-gray-800 px-6 py-3 flex items-center justify-between z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+        <button 
+          onClick={() => setMobileTab('market')}
+          className={cn(
+            "flex flex-col items-center gap-1 transition-all",
+            mobileTab === 'market' ? "text-yellow-500 scale-110" : "text-gray-500"
+          )}
+        >
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10px] font-bold">行情</span>
+        </button>
+        <button 
+          onClick={() => setMobileTab('chart')}
+          className={cn(
+            "flex flex-col items-center gap-1 transition-all",
+            mobileTab === 'chart' ? "text-yellow-500 scale-110" : "text-gray-500"
+          )}
+        >
+          <Activity className="w-5 h-5" />
+          <span className="text-[10px] font-bold">K线/实战</span>
+        </button>
+        <button 
+          onClick={() => setMobileTab('insights')}
+          className={cn(
+            "flex flex-col items-center gap-1 transition-all",
+            mobileTab === 'insights' ? "text-yellow-500 scale-110" : "text-gray-500"
+          )}
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-[10px] font-bold">博主动态</span>
+        </button>
+      </nav>
 
       {/* Footer */}
       <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-gray-800 mt-12 text-center text-gray-500 text-xs">

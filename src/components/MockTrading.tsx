@@ -203,9 +203,9 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
         ))}
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         {/* Left: Trading Form */}
-        <div className="w-full lg:w-80 border-r border-gray-800 p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+        <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-gray-800 p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar shrink-0">
           {/* Asset Info */}
           <div className="bg-[#2b2f36] rounded-lg p-3 border border-gray-700">
             <div className="flex items-center justify-between mb-2">
@@ -367,22 +367,22 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
           )}
 
           {mode === 'grid' && (
-            <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-              <LayoutGrid className="w-12 h-12 text-gray-700" />
+            <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+              <LayoutGrid className="w-10 h-10 text-gray-700" />
               <div>
                 <h4 className="text-sm font-bold text-gray-300">网格交易策略</h4>
-                <p className="text-xs text-gray-500 mt-1 px-4">自动在特定价格区间内低买高卖，适合震荡行情。</p>
+                <p className="text-[10px] text-gray-500 mt-1 px-4">自动在特定价格区间内低买高卖，适合震荡行情。</p>
               </div>
               <button className="px-6 py-2 bg-yellow-500 text-black rounded-lg text-xs font-bold">创建机器人</button>
             </div>
           )}
 
           {mode === 'copy' && (
-            <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-              <Users className="w-12 h-12 text-gray-700" />
+            <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+              <Users className="w-10 h-10 text-gray-700" />
               <div>
                 <h4 className="text-sm font-bold text-gray-300">一键跟单</h4>
-                <p className="text-xs text-gray-500 mt-1 px-4">跟随顶级交易员的步伐，同步他们的交易操作。</p>
+                <p className="text-[10px] text-gray-500 mt-1 px-4">跟随顶级交易员的步伐，同步他们的交易操作。</p>
               </div>
               <button className="px-6 py-2 bg-yellow-500 text-black rounded-lg text-xs font-bold">查看交易员列表</button>
             </div>
@@ -390,7 +390,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
         </div>
 
         {/* Right: Positions & History */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-[400px]">
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {/* Current Positions / Holdings */}
             <div className="p-4">
