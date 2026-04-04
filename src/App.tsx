@@ -447,9 +447,12 @@ export default function App() {
         {/* Sidebar - Market List */}
         <div className={cn(
           "lg:col-span-3 space-y-4",
-          mobileTab !== 'market' && "hidden lg:block"
+          mobileTab !== 'market' && mobileTab !== 'insights' && "hidden lg:block"
         )}>
-          <div className="bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden shadow-xl">
+          <div className={cn(
+            "bg-[#181a20] rounded-xl border border-gray-800 overflow-hidden shadow-xl",
+            mobileTab !== 'market' && "hidden lg:block"
+          )}>
             <div className="p-3 border-b border-gray-800 lg:hidden">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -635,14 +638,14 @@ export default function App() {
               </div>
             </div>
 
-            <div className="p-2 space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+            <div className="p-2 space-y-2 max-h-[calc(100vh-350px)] lg:max-h-[400px] overflow-y-auto custom-scrollbar">
               {fetchingInsights && (
                 <div className="p-4 text-center">
                   <RefreshCw className="w-4 h-4 animate-spin mx-auto text-blue-500 mb-2" />
                   <p className="text-[10px] text-gray-500">正在同步关注博主的最新动态...</p>
                 </div>
               )}
-              {allInfluencerInsights.map((insight, idx) => (
+              {allInfluencerInsights.length > 0 ? allInfluencerInsights.map((insight, idx) => (
                 <div key={idx} className="p-3 rounded-lg bg-[#2b2f36]/50 border border-gray-800 hover:border-gray-700 transition-colors relative group/card">
                   <button
                     onClick={() => hideInfluencer(insight.name)}
@@ -676,7 +679,12 @@ export default function App() {
                     {insight.content}
                   </p>
                 </div>
-              ))}
+              )) : !fetchingInsights && (
+                <div className="p-12 text-center">
+                  <Users className="w-8 h-8 text-gray-800 mx-auto mb-3" />
+                  <p className="text-gray-500 text-xs">暂无博主动态</p>
+                </div>
+              )}
             </div>
             <div className="p-3 bg-[#1e2329] border-t border-gray-800">
               <p className="text-[10px] text-gray-500 text-center leading-tight">
@@ -767,7 +775,7 @@ export default function App() {
               </div>
             </div>
             
-            <div className="w-full h-[300px] md:h-[450px]">
+            <div className="w-full h-[300px] md:h-[450px] overflow-hidden relative">
               <CandlestickChart data={klines} loading={loading} />
             </div>
           </div>

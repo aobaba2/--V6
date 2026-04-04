@@ -32,8 +32,8 @@ export const CandlestickChart: React.FC<ChartProps> = ({ data, loading }) => {
         vertLines: { color: '#2b2f36' },
         horzLines: { color: '#2b2f36' },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
+      width: chartContainerRef.current.clientWidth || 200,
+      height: chartContainerRef.current.clientHeight || 300,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -104,14 +104,18 @@ export const CandlestickChart: React.FC<ChartProps> = ({ data, loading }) => {
 
     const handleResize = () => {
       if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        chart.applyOptions({ 
+          width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight 
+        });
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(chartContainerRef.current);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       chart.remove();
     };
   }, []);
@@ -124,7 +128,7 @@ export const CandlestickChart: React.FC<ChartProps> = ({ data, loading }) => {
   }, [data]);
 
   return (
-    <div className="relative w-full h-[400px]">
+    <div className="relative w-full h-full">
       <div ref={chartContainerRef} className="w-full h-full" />
       <div 
         ref={tooltipRef}
