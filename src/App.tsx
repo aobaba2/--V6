@@ -66,6 +66,7 @@ export default function App() {
   const [newInfluencer, setNewInfluencer] = useState('');
   const [realtimeInsights, setRealtimeInsights] = useState<InfluencerInsight[]>([]);
   const [fetchingInsights, setFetchingInsights] = useState(false);
+  const [lastInsightUpdate, setLastInsightUpdate] = useState<number | null>(null);
   
   // Auth & Profile State
   const [user, setUser] = useState<User | null>(null);
@@ -100,9 +101,15 @@ export default function App() {
   useEffect(() => {
     const fetchRealtimeInsights = async () => {
       if (profile?.followedInfluencers && profile.followedInfluencers.length > 0) {
+        // Throttling: only update automatically if it's been more than 10 minutes
+        if (lastInsightUpdate && Date.now() - lastInsightUpdate < 10 * 60 * 1000) {
+          return;
+        }
+
         setFetchingInsights(true);
         const insights = await fetchInfluencerInsights(profile.followedInfluencers);
         setRealtimeInsights(insights);
+        setLastInsightUpdate(Date.now());
         setFetchingInsights(false);
       } else {
         setRealtimeInsights([]);
@@ -111,6 +118,20 @@ export default function App() {
 
     fetchRealtimeInsights();
   }, [profile?.followedInfluencers]);
+
+  const refreshInsights = async () => {
+    if (profile?.followedInfluencers && profile.followedInfluencers.length > 0) {
+      setFetchingInsights(true);
+      // Clear cache for this specific set of influencers
+      const cacheKey = `influencer_insights_${profile.followedInfluencers.sort().join('_')}`;
+      localStorage.removeItem(cacheKey);
+      
+      const insights = await fetchInfluencerInsights(profile.followedInfluencers);
+      setRealtimeInsights(insights);
+      setLastInsightUpdate(Date.now());
+      setFetchingInsights(false);
+    }
+  };
 
   // Combined Influencer Data
   const allInfluencerInsights = useMemo(() => {
@@ -521,7 +542,25 @@ export default function App() {
                 <Users className="w-4 h-4 text-blue-400" />
                 博主动态
               </h2>
-              <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded uppercase font-bold">Live</span>
+              <div className="flex items-center gap-2">
+                {lastInsightUpdate && (
+                  <span className="text-[9px] text-gray-500">
+                    {new Date(lastInsightUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+                <button 
+                  onClick={refreshInsights}
+                  disabled={fetchingInsights}
+                  className={cn(
+                    "p-1 rounded hover:bg-gray-800 transition-colors",
+                    fetchingInsights && "animate-spin text-blue-500"
+                  )}
+                  title="刷新动态"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
+                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded uppercase font-bold">Live</span>
+              </div>
             </div>
             
             {/* Followed Influencers Management */}

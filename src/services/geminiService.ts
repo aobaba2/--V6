@@ -99,6 +99,21 @@ export const analyzeMarket = async (
 export const fetchInfluencerInsights = async (influencers: string[]) => {
   if (influencers.length === 0) return [];
 
+  // Check cache first
+  const cacheKey = `influencer_insights_${influencers.sort().join('_')}`;
+  const cachedData = localStorage.getItem(cacheKey);
+  if (cachedData) {
+    try {
+      const { timestamp, data } = JSON.parse(cachedData);
+      // Cache valid for 30 minutes
+      if (Date.now() - timestamp < 30 * 60 * 1000) {
+        return data as InfluencerInsight[];
+      }
+    } catch (e) {
+      console.error("Cache parse error:", e);
+    }
+  }
+
   const prompt = `
     你是一位专业的加密货币社交媒体分析师。
     请使用 Google Search 搜索以下币安著名博主在币安广场 (Binance Square) 或社交媒体上的最新动态、观点和市场分析：
@@ -121,33 +136,57 @@ export const fetchInfluencerInsights = async (influencers: string[]) => {
     ]
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              avatar: { type: Type.STRING },
-              sentiment: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] },
-              content: { type: Type.STRING },
-              time: { type: Type.STRING }
-            },
-            required: ['name', 'avatar', 'sentiment', 'content', 'time']
+  let attempts = 0;
+  const maxAttempts = 3;
+
+  while (attempts < maxAttempts) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                avatar: { type: Type.STRING },
+                sentiment: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] },
+                content: { type: Type.STRING },
+                time: { type: Type.STRING }
+              },
+              required: ['name', 'avatar', 'sentiment', 'content', 'time']
+            }
           }
         }
+      });
+      
+      const insights = JSON.parse(response.text || "[]") as InfluencerInsight[];
+      
+      // Store in cache
+      const cacheKey = `influencer_insights_${influencers.sort().join('_')}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        timestamp: Date.now(),
+        data: insights
+      }));
+
+      return insights;
+    } catch (error: any) {
+      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+        attempts++;
+        if (attempts < maxAttempts) {
+          // Exponential backoff: 2s, 4s
+          const delay = Math.pow(2, attempts) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
       }
-    });
-    
-    return JSON.parse(response.text || "[]") as InfluencerInsight[];
-  } catch (error) {
-    console.error("Error fetching influencer insights:", error);
-    return [];
+      console.error("Error fetching influencer insights:", error);
+      return [];
+    }
   }
+  return [];
 };
