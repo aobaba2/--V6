@@ -64,6 +64,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
   const [price, setPrice] = useState(currentPrice.toString());
   const [amount, setAmount] = useState('');
   const [leverage, setLeverage] = useState(20);
+  const [spotLeverage, setSpotLeverage] = useState(1);
   const [marginType, setMarginType] = useState<'cross' | 'isolated'>('cross');
 
   // Update price when market changes if in market mode
@@ -74,32 +75,33 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
   }, [currentPrice, orderType]);
 
   const handleSpotTrade = () => {
-    const numAmount = parseFloat(amount);
+    const usdtAmount = parseFloat(amount);
     const numPrice = parseFloat(price);
-    if (isNaN(numAmount) || numAmount <= 0) return;
+    if (isNaN(usdtAmount) || usdtAmount <= 0 || isNaN(numPrice) || numPrice <= 0) return;
 
-    const totalCost = numAmount * numPrice;
+    const marginRequired = usdtAmount / spotLeverage;
+    const cryptoAmount = usdtAmount / numPrice;
 
     if (side === 'buy') {
-      if (totalCost > balance) {
+      if (marginRequired > balance) {
         alert('余额不足');
         return;
       }
-      setBalance(prev => prev - totalCost);
+      setBalance(prev => prev - marginRequired);
       setHoldings(prev => ({
         ...prev,
-        [symbol]: (prev[symbol] || 0) + numAmount
+        [symbol]: (prev[symbol] || 0) + cryptoAmount
       }));
     } else {
       const currentHolding = holdings[symbol] || 0;
-      if (numAmount > currentHolding) {
+      if (cryptoAmount > currentHolding) {
         alert('持仓不足');
         return;
       }
-      setBalance(prev => prev + totalCost);
+      setBalance(prev => prev + marginRequired);
       setHoldings(prev => ({
         ...prev,
-        [symbol]: currentHolding - numAmount
+        [symbol]: currentHolding - cryptoAmount
       }));
     }
 
@@ -109,7 +111,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
       side,
       type: orderType,
       price: numPrice,
-      amount: numAmount,
+      amount: cryptoAmount,
       time: new Date().toLocaleTimeString(),
       status: 'filled'
     }, ...prev]);
@@ -117,15 +119,17 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
   };
 
   const handleFuturesTrade = () => {
-    const numAmount = parseFloat(amount);
+    const usdtAmount = parseFloat(amount);
     const numPrice = parseFloat(price);
-    if (isNaN(numAmount) || numAmount <= 0) return;
+    if (isNaN(usdtAmount) || usdtAmount <= 0 || isNaN(numPrice) || numPrice <= 0) return;
 
-    const marginRequired = (numAmount * numPrice) / leverage;
+    const marginRequired = usdtAmount / leverage;
     if (marginRequired > balance) {
       alert('保证金不足');
       return;
     }
+
+    const cryptoAmount = usdtAmount / numPrice;
 
     const newPosition: Position = {
       id: Math.random().toString(36).substr(2, 9),
@@ -133,7 +137,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
       side: futuresSide,
       entryPrice: numPrice,
       leverage,
-      amount: numAmount,
+      amount: cryptoAmount,
       margin: marginRequired,
       unrealizedPnl: 0,
       pnlPercent: 0
@@ -147,7 +151,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
       side: futuresSide === 'long' ? 'long' : 'short',
       type: orderType,
       price: numPrice,
-      amount: numAmount,
+      amount: cryptoAmount,
       time: new Date().toLocaleTimeString(),
       status: 'filled'
     }, ...prev]);
@@ -260,7 +264,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
                 )}
 
                 <div>
-                  <label className="text-[10px] text-gray-500 block mb-1">数量 ({symbol.replace('USDT', '')})</label>
+                  <label className="text-[10px] text-gray-500 block mb-1">金额 (USDT)</label>
                   <input 
                     type="number" 
                     placeholder="0.00"
@@ -270,12 +274,33 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
                   />
                 </div>
 
-                <div className="flex justify-between text-[10px] text-gray-500 px-1">
-                  <span>0%</span>
-                  <span>25%</span>
-                  <span>50%</span>
-                  <span>75%</span>
-                  <span>100%</span>
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-1">杠杆倍数</label>
+                  <div className="flex gap-1">
+                    {[1, 3, 5, 10].map(l => (
+                      <button
+                        key={l}
+                        onClick={() => setSpotLeverage(l)}
+                        className={cn(
+                          "flex-1 py-1 rounded text-[10px] border transition-all",
+                          spotLeverage === l ? "border-yellow-500 text-yellow-500 bg-yellow-500/10" : "border-gray-700 text-gray-500 hover:border-gray-600"
+                        )}
+                      >
+                        {l}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-[#2b2f36] rounded p-2 space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-gray-500">占用保证金</span>
+                    <span className="text-gray-300">{((parseFloat(amount) || 0) / spotLeverage).toFixed(2)} USDT</span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-gray-500">最大可买</span>
+                    <span className="text-gray-300">{(balance * spotLeverage).toFixed(2)} USDT</span>
+                  </div>
                 </div>
 
                 <button 
@@ -302,7 +327,24 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
                   onClick={() => setMarginType('isolated')}
                   className={cn("flex-1 py-1 rounded text-[10px] border", marginType === 'isolated' ? "border-yellow-500 text-yellow-500 bg-yellow-500/10" : "border-gray-700 text-gray-500")}
                 >逐仓</button>
-                <button className="flex-1 py-1 rounded text-[10px] border border-gray-700 text-gray-300 bg-[#2b2f36]">{leverage}x</button>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-1">杠杆倍数</label>
+                <div className="grid grid-cols-5 gap-1">
+                  {[10, 20, 50, 100, 125].map(l => (
+                    <button
+                      key={l}
+                      onClick={() => setLeverage(l)}
+                      className={cn(
+                        "py-1 rounded text-[10px] border transition-all",
+                        leverage === l ? "border-yellow-500 text-yellow-500 bg-yellow-500/10" : "border-gray-700 text-gray-500 hover:border-gray-600"
+                      )}
+                    >
+                      {l}x
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex bg-[#2b2f36] rounded-lg p-1">
@@ -332,7 +374,7 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-gray-500 block mb-1">数量 ({symbol.replace('USDT', '')})</label>
+                  <label className="text-[10px] text-gray-500 block mb-1">金额 (USDT)</label>
                   <input 
                     type="number" 
                     placeholder="0.00"
@@ -345,11 +387,11 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice }
                 <div className="bg-[#2b2f36] rounded p-2 space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <span className="text-gray-500">成本</span>
-                    <span className="text-gray-300">{((parseFloat(amount) || 0) * (parseFloat(price) || 0) / leverage).toFixed(2)} USDT</span>
+                    <span className="text-gray-300">{((parseFloat(amount) || 0) / leverage).toFixed(2)} USDT</span>
                   </div>
                   <div className="flex justify-between text-[10px]">
                     <span className="text-gray-500">最大可开</span>
-                    <span className="text-gray-300">{(balance * leverage / currentPrice).toFixed(3)} {symbol.replace('USDT', '')}</span>
+                    <span className="text-gray-300">{(balance * leverage).toFixed(2)} USDT</span>
                   </div>
                 </div>
 

@@ -37,7 +37,7 @@ import Markdown from 'react-markdown';
 import { CandlestickChart } from './components/CandlestickChart';
 import { MockTrading } from './components/MockTrading';
 import { AdminDashboard } from './components/AdminDashboard';
-import { auth, db, signIn, logOut, getOrCreateProfile, UserProfile, UserRole } from './firebase';
+import { auth, db, signIn, logOut, getOrCreateProfile, UserProfile, UserRole, signInEmail, signUpEmail, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 
@@ -71,6 +71,11 @@ export default function App() {
   const [lastInsightUpdate, setLastInsightUpdate] = useState<number | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [mobileTab, setMobileTab] = useState<'market' | 'chart' | 'insights'>('chart');
+  const [titleClickCount, setTitleClickCount] = useState(0);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminCredentials, setAdminCredentials] = useState({ username: '', password: '' });
+  const [adminLoginError, setAdminLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   // Auth & Profile State
   const [user, setUser] = useState<User | null>(null);
@@ -78,6 +83,64 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Mock Influencer Data
+  const handleTitleClick = () => {
+    const newCount = titleClickCount + 1;
+    setTitleClickCount(newCount);
+    if (newCount >= 10) {
+      setShowAdminLogin(true);
+      setTitleClickCount(0);
+    }
+    // Reset count after 3 seconds of inactivity
+    setTimeout(() => setTitleClickCount(0), 3000);
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminLoginError('');
+    setIsLoggingIn(true);
+    
+    try {
+      // The user requested aoba2026 / ylz@8826
+      // We map this to aoba2026@admin.com in Firebase
+      const email = `${adminCredentials.username}@admin.com`;
+      
+      try {
+        await signInEmail(email, adminCredentials.password);
+      } catch (err: any) {
+        // If user doesn't exist, try to create it (first time setup)
+        // Modern Firebase returns auth/invalid-credential for user-not-found as well
+        const isCredentialError = err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential';
+        const isSuperAdmin = adminCredentials.username === 'aoba2026' && adminCredentials.password === 'ylz@8826';
+        
+        if (isCredentialError && isSuperAdmin) {
+          try {
+            await signUpEmail(email, adminCredentials.password);
+          } catch (signUpErr: any) {
+            // If email already exists, it means the password was actually wrong
+            if (signUpErr.code === 'auth/email-already-in-use') {
+              throw err;
+            }
+            throw signUpErr;
+          }
+        } else {
+          throw err;
+        }
+      }
+      
+      setShowAdminLogin(false);
+      setAdminCredentials({ username: '', password: '' });
+    } catch (err: any) {
+      console.error('Admin login error:', err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setAdminLoginError('登录失败：Firebase 项目尚未开启“电子邮件/密码”登录。请点击我提供的链接进入 Firebase 控制台开启该功能。');
+      } else {
+        setAdminLoginError('登录失败：用户名或密码错误。请确保已在 Firebase 控制台启用“电子邮件/密码”登录。');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   const influencerInsights: InfluencerInsight[] = useMemo(() => [
     {
       name: "币圈大咖-老王",
@@ -206,6 +269,8 @@ export default function App() {
           if (doc.exists()) {
             setProfile(doc.data() as UserProfile);
           }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
         });
         return () => profileUnsub();
       } else {
@@ -252,9 +317,13 @@ export default function App() {
     
     // Increment analysis count for free users
     if (profile.role === 'free') {
-      await updateDoc(doc(db, 'users', profile.uid), {
-        aiAnalysisCount: increment(1)
-      });
+      try {
+        await updateDoc(doc(db, 'users', profile.uid), {
+          aiAnalysisCount: increment(1)
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
+      }
     }
 
     setAnalysisResult(result);
@@ -277,7 +346,7 @@ export default function App() {
         favorites: newFavorites
       });
     } catch (error) {
-      console.error('Error updating favorites:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -300,7 +369,7 @@ export default function App() {
         favorites: newFavorites
       });
     } catch (error) {
-      console.error('Error reordering favorites:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -318,7 +387,7 @@ export default function App() {
       });
       setNewInfluencer('');
     } catch (error) {
-      console.error('Error adding influencer:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -330,7 +399,7 @@ export default function App() {
         followedInfluencers: updated
       });
     } catch (error) {
-      console.error('Error removing influencer:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -342,7 +411,7 @@ export default function App() {
         hiddenInfluencers: updated
       });
     } catch (error) {
-      console.error('Error hiding influencer:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -376,14 +445,97 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans selection:bg-yellow-500/30">
+      {/* Admin Login Modal */}
+      <AnimatePresence>
+        {showAdminLogin && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-[#1e2329] border border-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-yellow-500" />
+                  后台管理登录
+                </h2>
+                <button 
+                  onClick={() => setShowAdminLogin(false)}
+                  className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">用户名</label>
+                  <input 
+                    type="text"
+                    required
+                    value={adminCredentials.username}
+                    onChange={(e) => setAdminCredentials(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full bg-[#0b0e11] border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-yellow-500 outline-none transition-all"
+                    placeholder="输入管理员用户名"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">密码</label>
+                  <input 
+                    type="password"
+                    required
+                    value={adminCredentials.password}
+                    onChange={(e) => setAdminCredentials(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full bg-[#0b0e11] border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-yellow-500 outline-none transition-all"
+                    placeholder="输入管理员密码"
+                  />
+                </div>
+
+                {adminLoginError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-red-400 leading-relaxed">{adminLoginError}</p>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      正在登录...
+                    </>
+                  ) : (
+                    '立即登录'
+                  )}
+                </button>
+              </form>
+              
+              <p className="mt-6 text-[10px] text-gray-500 text-center">
+                提示：此入口为系统维护专用，非管理员请勿尝试。
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="border-b border-gray-800 bg-[#181a20] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 md:w-8 md:h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
-              <Activity className="text-black w-4 h-4 md:w-5 md:h-5" />
+            <div 
+              className="flex items-center gap-1.5 md:gap-2 cursor-pointer select-none active:scale-95 transition-transform"
+              onClick={handleTitleClick}
+            >
+              <div className="w-7 h-7 md:w-8 md:h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
+                <Activity className="text-black w-4 h-4 md:w-5 md:h-5" />
+              </div>
+              <h1 className="text-lg md:text-xl font-bold tracking-tight">Binance AI <span className="text-yellow-500 hidden sm:inline">助手</span><span className="text-yellow-500 sm:hidden">助手</span></h1>
             </div>
-            <h1 className="text-lg md:text-xl font-bold tracking-tight">Binance AI <span className="text-yellow-500 hidden sm:inline">炒币助手</span><span className="text-yellow-500 sm:hidden">助手</span></h1>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
             {authLoading ? (

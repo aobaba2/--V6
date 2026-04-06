@@ -21,7 +21,7 @@ import {
   limit,
   where
 } from 'firebase/firestore';
-import { db, UserProfile, UserRole } from '../firebase';
+import { db, UserProfile, UserRole, handleFirestoreError, OperationType } from '../firebase';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
@@ -48,7 +48,7 @@ export function AdminDashboard({ onBack, currentUserProfile }: AdminDashboardPro
       });
       setUsers(fetchedUsers);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      handleFirestoreError(error, OperationType.LIST, 'users');
     } finally {
       setLoading(false);
     }
@@ -65,8 +65,7 @@ export function AdminDashboard({ onBack, currentUserProfile }: AdminDashboardPro
       await updateDoc(userRef, { role: newRole });
       setUsers(prev => prev.map(u => u.uid === userId ? { ...u, role: newRole } : u));
     } catch (error) {
-      console.error('Error updating user role:', error);
-      alert('权限不足或更新失败');
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     } finally {
       setUpdatingUserId(null);
     }
