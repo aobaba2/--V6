@@ -162,6 +162,11 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice, 
   const [tpPercentInput, setTpPercentInput] = useState('');
   const [slPercentInput, setSlPercentInput] = useState('');
 
+  // Edit TP/SL for existing position states
+  const [editingPosId, setEditingPosId] = useState<string | null>(null);
+  const [editTpPrice, setEditTpPrice] = useState('');
+  const [editSlPrice, setEditSlPrice] = useState('');
+
   // Reset inputs when mode, symbol, side changes
   useEffect(() => {
     setTpEnabled(false);
@@ -354,6 +359,28 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice, 
     const msg = `合约平仓成功: ${pos.side === 'long' ? '多' : '空'}单 ${pos.symbol} 已在 ${currentPrice.toFixed(2)} USDT 平仓，实现盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`;
     if (showToast) showToast(msg, pnl >= 0 ? 'success' : 'warning');
     sendNotification(msg);
+  };
+
+  const updatePositionTpSl = (posId: string, tpPrice: number | undefined, slPrice: number | undefined) => {
+    setPositions(prev => prev.map(pos => {
+      if (pos.id === posId) {
+        return {
+          ...pos,
+          tpPrice,
+          slPrice
+        };
+      }
+      return pos;
+    }));
+
+    const pos = positions.find(p => p.id === posId);
+    if (pos) {
+      const tpText = tpPrice ? `${tpPrice.toFixed(2)} USDT` : '已撤销';
+      const slText = slPrice ? `${slPrice.toFixed(2)} USDT` : '已撤销';
+      const msg = `合约策略修改: ${pos.symbol} (${pos.side === 'long' ? '多' : '空'}单) 的新策略已生效。止盈位: ${tpText}, 止损位: ${slText}`;
+      if (showToast) showToast(msg, 'success');
+      sendNotification(msg);
+    }
   };
 
   // Calculate unrealized PNL for positions
@@ -1196,18 +1223,110 @@ export const MockTrading: React.FC<MockTradingProps> = ({ symbol, currentPrice, 
                           </div>
                         </div>
 
-                        {/* Extra info for TP/SL values */}
-                        <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between text-[11px]">
-                          <span className="text-gray-500">已设定策略:</span>
-                          <div className="flex gap-3 text-[10px]">
-                            <span className={cn("font-mono", pos.tpPrice ? "text-green-500" : "text-gray-600")}>
-                              止盈价: {pos.tpPrice ? `${pos.tpPrice.toFixed(2)} USDT` : '--'}
-                            </span>
-                            <span className={cn("font-mono", pos.slPrice ? "text-red-400" : "text-gray-600")}>
-                              止损价: {pos.slPrice ? `${pos.slPrice.toFixed(2)} USDT` : '--'}
-                            </span>
+                        {/* Extra info for TP/SL values with Editing flow */}
+                        {editingPosId === pos.id ? (
+                          <div className="mt-3 pt-2 border-t border-gray-800/80 space-y-2">
+                            <div className="flex items-center justify-between text-[10px] text-gray-500">
+                              <span className="font-bold text-yellow-500">修改止盈止损价格:</span>
+                              <span className="font-mono">开仓价: {pos.entryPrice.toFixed(2)} USDT</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[9px] text-gray-500 block mb-0.5">止盈价格 (USDT)</label>
+                                <input
+                                  type="number"
+                                  placeholder="无止盈"
+                                  value={editTpPrice}
+                                  onChange={(e) => setEditTpPrice(e.target.value)}
+                                  className="w-full bg-[#1e2329] border border-gray-700 rounded px-2 py-1 text-xs text-white font-mono outline-none focus:border-green-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-gray-500 block mb-0.5">止损价格 (USDT)</label>
+                                <input
+                                  type="number"
+                                  placeholder="无止损"
+                                  value={editSlPrice}
+                                  onChange={(e) => setEditSlPrice(e.target.value)}
+                                  className="w-full bg-[#1e2329] border border-gray-700 rounded px-2 py-1 text-xs text-white font-mono outline-none focus:border-red-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-1.5 pt-1">
+                              <button
+                                onClick={() => setEditingPosId(null)}
+                                className="px-2 py-0.5 bg-gray-800 hover:bg-gray-750 text-gray-400 text-[10px] font-bold rounded transition-colors"
+                              >
+                                取消
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const tp = editTpPrice.trim() ? parseFloat(editTpPrice) : undefined;
+                                  const sl = editSlPrice.trim() ? parseFloat(editSlPrice) : undefined;
+                                  if (tp !== undefined && (isNaN(tp) || tp <= 0)) {
+                                    showToast?.('止盈价格无效，请检查', 'error');
+                                    return;
+                                  }
+                                  if (sl !== undefined && (isNaN(sl) || sl <= 0)) {
+                                    showToast?.('止损价格无效，请检查', 'error');
+                                    return;
+                                  }
+
+                                  // Validate that prices are not already triggered
+                                  if (pos.side === 'long') {
+                                    if (tp !== undefined && currentPrice >= tp) {
+                                      showToast?.(`保存失败：设定止盈价格 (${tp.toFixed(2)}) 必须大于当前现价 (${currentPrice.toFixed(2)})，否则开盘即触发平仓。`, 'error');
+                                      return;
+                                    }
+                                    if (sl !== undefined && currentPrice <= sl) {
+                                      showToast?.(`保存失败：设定止损价格 (${sl.toFixed(2)}) 必须小于当前现价 (${currentPrice.toFixed(2)})，否则开盘即触发止损。`, 'error');
+                                      return;
+                                    }
+                                  } else { // short
+                                    if (tp !== undefined && currentPrice <= tp) {
+                                      showToast?.(`保存失败：设定止盈价格 (${tp.toFixed(2)}) 必须小于当前现价 (${currentPrice.toFixed(2)})，否则开盘即触发平仓。`, 'error');
+                                      return;
+                                    }
+                                    if (sl !== undefined && currentPrice >= sl) {
+                                      showToast?.(`保存失败：设定止损价格 (${sl.toFixed(2)}) 必须大于当前现价 (${currentPrice.toFixed(2)})，否则开盘即触发止损。`, 'error');
+                                      return;
+                                    }
+                                  }
+
+                                  updatePositionTpSl(pos.id, tp, sl);
+                                  setEditingPosId(null);
+                                }}
+                                className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-black text-[10px] font-bold rounded transition-colors"
+                              >
+                                保存修改
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between text-[11px]">
+                            <span className="text-gray-500">已设定策略:</span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex gap-3 text-[10px]">
+                                <span className={cn("font-mono", pos.tpPrice ? "text-green-500" : "text-gray-600")}>
+                                  止盈价: {pos.tpPrice ? `${pos.tpPrice.toFixed(2)} USDT` : '--'}
+                                </span>
+                                <span className={cn("font-mono", pos.slPrice ? "text-red-400" : "text-gray-600")}>
+                                  止损价: {pos.slPrice ? `${pos.slPrice.toFixed(2)} USDT` : '--'}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setEditingPosId(pos.id);
+                                  setEditTpPrice(pos.tpPrice ? pos.tpPrice.toString() : '');
+                                  setEditSlPrice(pos.slPrice ? pos.slPrice.toString() : '');
+                                }}
+                                className="text-[10px] text-yellow-500 hover:text-yellow-400 font-bold hover:underline transition-all"
+                              >
+                                修改止盈/止损
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (
