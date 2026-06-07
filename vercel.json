@@ -5,7 +5,11 @@
       "destination": "https://api.binance.com/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api).*)/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!api).*)",
       "destination": "/index.html"
     }
   ]
