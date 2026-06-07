@@ -98,6 +98,30 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  
+  const parsedAnalysis = useMemo(() => {
+    if (!analysisResult) return { metrics: null, markdown: "" };
+    
+    // Regular expression to find the [METRICS] JSON string and block
+    const metricsRegex = /\[METRICS\]([\s\S]*?)\[\/METRICS\]/;
+    const match = analysisResult.match(metricsRegex);
+    
+    if (match) {
+      try {
+        let jsonStr = match[1].trim();
+        // Remove code block markers if the model wrapped it in ```json ... ```
+        jsonStr = jsonStr.replace(/^```json/, "").replace(/^```/, "").replace(/```$/, "").trim();
+        const metrics = JSON.parse(jsonStr);
+        const markdown = analysisResult.replace(metricsRegex, "").trim();
+        return { metrics, markdown };
+      } catch (e) {
+        console.error("Failed to parse analysis metrics JSON:", e);
+      }
+    }
+    
+    return { metrics: null, markdown: analysisResult };
+  }, [analysisResult]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'analysis' | 'trading'>('analysis');
   const [sidebarTab, setSidebarTab] = useState<'all' | 'favorites'>('favorites');
@@ -1201,15 +1225,145 @@ export default function App() {
                       </div>
                     ) : analysisResult ? (
                       <div className="prose prose-invert max-w-none">
-                        <div className="bg-[#1e2329] rounded-lg p-4 md:p-6 border border-gray-700 shadow-inner">
-                          <div className="flex items-center justify-between mb-4">
+                        <div className="bg-[#1e2329] rounded-lg p-4 md:p-6 border border-gray-700 shadow-inner space-y-6">
+                          <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div className="flex items-center gap-2 text-purple-400 font-bold text-xs md:text-sm">
-                              <Info className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                              分析报告 - {selectedSymbol}
+                              <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-purple-500" />
+                              全球多源数据融合决策报告 - {selectedSymbol}
                             </div>
+                            <span className="text-[9px] md:text-xs font-mono py-0.5 px-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-full">
+                              超强综合研判 v4.0
+                            </span>
                           </div>
-                          <div className="markdown-body text-gray-300 leading-relaxed text-xs md:text-sm">
-                            <Markdown>{analysisResult}</Markdown>
+
+                          {/* Dynamic Visual Dashboard Block */}
+                          {parsedAnalysis.metrics && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-950/40 p-4 border border-gray-800 rounded-lg shadow-inner">
+                              
+                              {/* 1. Market Health Gauge */}
+                              <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-800/80 pb-4 md:pb-0 md:pr-4">
+                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1">
+                                  <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> 市场整体健康度
+                                </span>
+                                <div className="relative flex items-center justify-center">
+                                  {(() => {
+                                    const radius = 32;
+                                    const circ = 2 * Math.PI * radius;
+                                    const score = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.healthScore) || 50));
+                                    const offset = circ - (score / 100) * circ;
+                                    const isBully = score >= 60;
+                                    const isBeary = score <= 40;
+                                    const ringColor = isBully ? "text-emerald-500" : isBeary ? "text-red-500" : "text-yellow-500";
+                                    const ringBg = isBully ? "bg-emerald-500/5" : isBeary ? "bg-red-500/5" : "bg-yellow-500/5";
+                                    return (
+                                      <>
+                                        <svg className="w-20 h-20 md:w-24 md:h-24 transform -rotate-90">
+                                          <circle cx="48" cy="48" r={radius} className="text-gray-850" strokeWidth="5.5" stroke="currentColor" fill="transparent" />
+                                          <circle cx="48" cy="48" r={radius} className={ringColor} strokeWidth="5.5" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" stroke="currentColor" fill="transparent" />
+                                        </svg>
+                                        <div className="absolute flex flex-col items-center justify-center">
+                                          <span className="text-lg md:text-xl font-mono font-black text-white">{score}</span>
+                                          <span className={`text-[8px] md:text-[9px] font-bold ${ringColor}`}>
+                                            {isBully ? "多头强劲" : isBeary ? "空头主导" : "震荡蓄势"}
+                                          </span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                                <span className="text-[9px] text-gray-500 mt-2 text-center leading-relaxed">
+                                  加权指标权重：链上[30%] 消息[25%] 技术[25%] 宏观[20%]
+                                </span>
+                              </div>
+
+                              {/* 2. Probability Distribution Grid */}
+                              <div className="flex flex-col justify-center border-b md:border-b-0 md:border-r border-gray-800/80 py-4 md:py-0 md:px-4">
+                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-3 flex items-center gap-1 self-center md:self-start">
+                                  <Activity className="w-3.5 h-3.5 text-purple-400" /> 多情境多空概率分布
+                                </span>
+                                <div className="space-y-2 text-[10px] md:text-xs">
+                                  {(() => {
+                                    const long = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.longProb) || 0));
+                                    const short = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.shortProb) || 0));
+                                    const neutral = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.neutralProb) || 0));
+                                    return (
+                                      <>
+                                        <div>
+                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                            <span className="text-emerald-400 flex items-center gap-1">🟢 做多机会 (Long)</span>
+                                            <span className="font-mono text-white">{long}%</span>
+                                          </div>
+                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${long}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-emerald-500 h-1.5 rounded-full" />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                            <span className="text-red-400 flex items-center gap-1">🔴 做空倾向 (Short)</span>
+                                            <span className="font-mono text-white">{short}%</span>
+                                          </div>
+                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${short}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-red-500 h-1.5 rounded-full" />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                            <span className="text-gray-400 flex items-center gap-1">⚪ 观望策略 (Neutral)</span>
+                                            <span className="font-mono text-white">{neutral}%</span>
+                                          </div>
+                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${neutral}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-gray-500 h-1.5 rounded-full" />
+                                          </div>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+
+                              {/* 3. Authoritative Core Metrics */}
+                              <div className="flex flex-col justify-center pt-4 md:pt-0 md:pl-4">
+                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1 self-center md:self-start">
+                                  <Info className="w-3.5 h-3.5 text-purple-400" /> 多源权威研判基本指标
+                                </span>
+                                <div className="space-y-2 mt-1">
+                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
+                                    <span className="text-gray-500">恐惧与贪婪指数</span>
+                                    <span className="font-mono text-white font-bold flex items-center gap-1">
+                                      {parsedAnalysis.metrics.fearGreedIndex}
+                                      {(() => {
+                                        const val = Number(parsedAnalysis.metrics.fearGreedIndex) || 50;
+                                        if (val >= 75) return <span className="text-emerald-400 text-[8px] bg-emerald-500/10 px-1 rounded font-bold">极度贪婪</span>;
+                                        if (val >= 55) return <span className="text-green-400 text-[8px] bg-green-500/10 px-1 rounded font-bold">贪婪</span>;
+                                        if (val >= 45) return <span className="text-yellow-400 text-[8px] bg-yellow-500/10 px-1 rounded font-bold">中立</span>;
+                                        if (val >= 25) return <span className="text-orange-400 text-[8px] bg-orange-500/10 px-1 rounded font-bold">恐惧</span>;
+                                        return <span className="text-red-400 text-[8px] bg-red-500/10 px-1 rounded font-bold">极度恐惧</span>;
+                                      })()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
+                                    <span className="text-gray-500">资金费率趋势</span>
+                                    <span className="font-mono text-cyan-400 font-bold">{parsedAnalysis.metrics.fundingRate || "加载中"}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1">
+                                    <span className="text-gray-500">潜在爆仓/波动风险</span>
+                                    <span className="font-mono font-bold">
+                                      {(() => {
+                                        const level = parsedAnalysis.metrics.riskLevel || "中等";
+                                        const badgeColor = level === '极高' || level === '较高' ? 'text-red-400 bg-red-500/10 border-red-500/20' : level === '较低' || level === '极低' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+                                        return <span className={`text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} font-bold`}>{level}</span>;
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          )}
+
+                          {/* Markdown report contents */}
+                          <div className="markdown-body text-gray-300 leading-relaxed text-xs md:text-sm border-t border-gray-800 pt-4">
+                            <Markdown>{parsedAnalysis.markdown}</Markdown>
                           </div>
                         </div>
                       </div>

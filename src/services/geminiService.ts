@@ -33,48 +33,69 @@ export const analyzeMarket = async (
   followedInfluencers: string[] = []
 ) => {
   const prompt = `
-    你是一位拥有 10 年经验的加密货币顶级交易员，同时也是一位敏锐的市场情绪分析师。
-    你的任务是结合【实时行情数据】、【币安顶级博主动态】以及【全网实时新闻/广场动态】，为用户提供一份全方位的综合决策报告。
+    你是一位顶级的加密货币架构师、量化交易专家和情绪分析大师。
+    你的任务是为交易对 \${symbol} (\${intervalLabel}) 运行【超强综合研判系统】，结合全球最权威、最专业的实时多源数据，进行多源数据融合决策。
     
     输入信息：
-    1. 交易对: ${symbol} (${intervalLabel})
-    2. 现价: ${currentData.price} (24h涨跌: ${currentData.priceChangePercent}%)
-    3. 最近 K 线走势: ${klines.slice(-10).map(k => k.close).join(', ')}
-    4. 币安博主最新动态:
-       ${influencerInsights.map(i => `- 【${i.name}】(${i.sentiment}): "${i.content}"`).join('\n')}
-    5. 用户关注的博主列表: ${followedInfluencers.join(', ')}
+    1. 交易对: \${symbol}
+    2. 周期: \${intervalLabel}
+    3. 现价: \${currentData.price} (24h涨跌: \${currentData.priceChangePercent}%)
+    4. 最近 K 线收盘价走势: \${klines.slice(-10).map(k => k.close).join(', ')}
+    5. 币安博主动态观点:
+       \${influencerInsights.map(i => \`- 【\${i.name}】(\${i.sentiment}): "\${i.content}"\`).join('\\n')}
 
     任务要求：
-    1. 使用 Google Search 搜索关于 ${symbol} 的最新新闻、币安广场 (Binance Square) 的热门讨论、社区情绪以及该币种的基本面信息。
-    2. 特别关注用户关注的博主：${followedInfluencers.join(', ')}。搜索他们在币安广场或社交媒体上关于 ${symbol} 的最新观点。
-    3. 综合研判：结合技术面（K线）、消息面（博主观点）和基本面（实时新闻），判断当前是否存在“共振”或“背离”。
-    4. 避坑指南：如果博主们集体看涨但新闻面出现重大利空，请提醒用户注意风险。
-    5. 最终共识：给出结合了社交情绪、实时新闻 and 技术指标的最终操作建议。
+    1. 使用 Google Search 检索以下核心专业层面的实时权威数据，进行交叉研判：
+       a. 【链上数据 (On-Chain)】：检索 Glassnode/CryptoQuant 等平台上关于 \${symbol} 目前的巨鲸动向（Whale Movement）、交易所净流入流出（Exchange Netflow）、活跃地址数、NVT 比率等指标。
+       b. 【市场深度与流动性 (Market Liquidity)】：检索 \${symbol} 的未平仓合约量 (Open Interest, OI)、24h跌涨爆仓额 (Liquidation data)、资金费率 (Funding Rate) 趋势。
+       c. 【宏观经济与机构面 (Macro & Institutional)】：检索美联储最新的利息政策决议、非农、CPI 数据趋势，以及 Messari、Binance Research、Coinbase Research 对该资产的最新观点与宏观流动性环境。
+       d. 【社交与情绪面 (Social Sentiment)】：检索 Alternative.me 恐惧与贪婪指数 (Fear & Greed Index)、X (Twitter) 及 Reddit 上关于该币种的讨论热度与主要话题。
+    2. 运行【多源实时融合决策算法】：
+       - 结合技术面（权重 25%）、链上数据（权重 30%）、市场情绪/流动性（权重 25%）、宏观机构面（权重 20%），通过 multi-source 数据投票及加权打分，生成市场整体健康度评分（0 - 100 分，60分以上属于强健康偏牛，40分以下属于不健康偏熊，中间为中性）。
+    3. 严格在报告的最开始，输出一个结构化的 JSON 密闭参数块 [METRICS]...[/METRICS]，格式必须为：
+       [METRICS]
+       {
+         "healthScore": 整数数值(0-100),
+         "longProb": 整数百分比(0-100),
+         "shortProb": 整数百分比(0-100),
+         "neutralProb": 整数百分比(0-100),
+         "riskLevel": "极高" | "较高" | "中等" | "较低" | "极低",
+         "fundingRate": "例如 +0.01% 或 -0.01%",
+         "fearGreedIndex": 恐惧与贪婪指数数值(0-100)
+       }
+       [/METRICS]
+       注意：请确保此 JSON 数据符合真实检索与推演结果。
+    4. 接着，输出深度而专业的 Markdown 深度综合研判报告，结构如下：
 
-    请按以下格式输出（使用 Markdown）：
+    ---
 
-    ### 📰 实时资讯 & 广场动态 (Binance Square)
-    - 总结最新的 3-5 条关于该币种的重大新闻或社区热门讨论。
-    - **重点博主动态**：总结 ${followedInfluencers.join(', ')} 的最新观点（如果能搜到）。
-    - 包含该币种的简单背景介绍（如果是新币或非主流币）。
+    # 🌐 【超强综合研判系统】深度融合决策报告
 
-    ### 🌐 市场综合共识
-    > [技术面、情绪面与新闻面是否达成一致？] - 给出最终的信心指数 (0-100%)。
+    ### 📊 一、多源融合决策打分盘
+    - **总体健康度得分**：**{healthScore} / 100** (请说明加权打分的过程：技术面[25%]、链上主力[30%]、情绪流动性[25%]、宏观机构[20%])
+    - **当前决策比重分配**：做多概率 **{longProb}%** | 做空概率 **{shortProb}%** | 观望概率 **{neutralProb}%**
 
-    ### 📣 博主观点汇总
-    - 总结博主们的整体倾向（看多派 vs 看空派）。
+    ### 🔗 二、权威多源数据交叉解析
+    - **1. 链上主力动向 (On-Chain Data)**: (巨鲸仓位变化、交易所流向、NVT等指标解析)
+    - **2. 市场深度与流动性 (Market Depth & Liquidity)**: (未平仓合约OI变动、爆仓分布、资金费率)
+    - **3. 宏观政策与机构报告观点 (Macro & Institutional)**: (美联储/CPI宏观环境对 \${symbol} 影响 + Messari/Binance Research 核心观点)
+    - **4. 情绪与社交风向 (Sentiment & Social)**: (恐惧贪婪指数、X/Reddit 社区狂热度/恐慌感 NLP 分析)
 
-    ### 🧠 深度逻辑拆解
-    - 结合博主观点、实时新闻和 K 线走势，分析当前最真实的盘面意图。
+    ### ⚔️ 三、多空因素激烈对撞 (Bull vs Bear factors)
+    | 🟢 牛市因子 (Bulllish Support) | 🔴 熊市因子 (Bearish Pressure) |
+    | :--- | :--- |
+    | 因素1: [具体描述与其对盘面的支撑逻辑] | 因素1: [具体描述与其对盘面的打压逻辑] |
+    | 因素2: [具体描述] | 因素2: [具体描述] |
 
-    ### 🎯 最终实战建议
-    - **操作方向**：[做多 / 做空 / 观望]
-    - **参考进场位**：[具体价格]
-    - **参考止盈位**：[具体价格]
-    - **参考止损位**：[具体价格]
+    ### ⚠️ 四、潜在风险极端警示
+    - 列出当前最有可能导致爆仓或亏损的极极端风险（如：大额解锁、大量筹码向交易所转移、负溢价、资金费率过高、灰度抛压等）。
 
-    ### 💡 给小白的真心话
-    - (用最直白的话告诉新手：现在是该跟着博主冲，还是该等？风险大不大？)
+    ### 🏹 五、多情境博弈应对策略
+    - 不要单一预测。提供三种情境的概率分布及对应策略：
+      - **情境 A（多头强势突破/延续）**：发生概率 **{X}%** -> 核心应对价位与执行细节
+      - **情境 B（箱体震荡/蓄势）**：发生概率 **{Y}%** -> 核心应对价位与执行细节
+      - **情境 C（空头突袭回撤/破位）**：发生概率 **{Z}%** -> 核心应对价位与执行细节
+    - 给出严密的**进场位**、**止盈位**、**止损位**参考。
   `;
 
   try {
