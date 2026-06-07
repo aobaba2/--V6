@@ -598,12 +598,12 @@ export default function App() {
     
     // Membership Check
     if (!profile) {
-      showToast('请先登录以使用 AI 分析功能', 'warning');
+      showToast('请先登录并升级以使用 AI 分析功能', 'warning');
       return;
     }
     
-    if (profile.role === 'free' && profile.aiAnalysisCount >= 3) {
-      showToast('免费会员每日仅限 3 次 AI 分析，请升级为收费会员以解锁无限次数', 'error');
+    if (profile.role === 'free') {
+      showToast('AI 智能决策属于收费(高级)会员专属功能，请升级后体验', 'error');
       return;
     }
 
@@ -619,15 +619,13 @@ export default function App() {
       profile?.followedInfluencers || []
     );
     
-    // Increment analysis count for free users
-    if (profile.role === 'free') {
-      try {
-        await updateDoc(doc(db, 'users', profile.uid), {
-          aiAnalysisCount: increment(1)
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
-      }
+    // Increment analysis count for user tracking stats
+    try {
+      await updateDoc(doc(db, 'users', profile.uid), {
+        aiAnalysisCount: increment(1)
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     }
 
     setAnalysisResult(result);
@@ -1452,8 +1450,37 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="p-4 md:p-6"
+                    className="p-4 md:p-6 relative min-h-[400px] md:min-h-[500px]"
                   >
+                    {!profile ? (
+                      <div className="absolute inset-0 bg-[#0b0e11]/90 backdrop-blur-[5px] z-40 flex flex-col items-center justify-center p-6 md:p-8 text-center rounded-b-xl">
+                        <BrainCircuit className="w-12 h-12 md:w-16 md:h-16 text-purple-500 mb-4 animate-pulse animate-duration-1000" />
+                        <h3 className="text-lg md:text-xl font-bold mb-2 text-purple-400">一键开启 AI 智能分析</h3>
+                        <p className="text-gray-400 text-xs mb-6 max-w-sm">
+                          全天候实时追踪链上动态、币安广场新闻与专业指标。请登录账户以启用收费会员专享的 AI 高维决策模型。
+                        </p>
+                        <button 
+                          onClick={() => setShowAuthModal(true)}
+                          className="bg-yellow-500 text-black px-6 py-2 md:px-8 md:py-2.5 rounded-xl font-bold text-xs md:text-sm hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-900/20"
+                        >
+                          快捷登录 / 注册账户
+                        </button>
+                      </div>
+                    ) : profile.role === 'free' ? (
+                      <div className="absolute inset-0 bg-[#0b0e11]/90 backdrop-blur-[5px] z-40 flex flex-col items-center justify-center p-6 md:p-8 text-center rounded-b-xl">
+                        <Lock className="w-12 h-12 md:w-16 md:h-16 text-purple-500 mb-4" />
+                        <h3 className="text-lg md:text-xl font-bold mb-2 text-purple-400">AI 智能分析已锁定</h3>
+                        <p className="text-gray-400 text-xs mb-6 max-w-sm">
+                          AI 智能深度分析功能是收费会员的专属权益。升级后即可无限制使用高维量化模型分析、多源数据决策研判及实时策略建议。
+                        </p>
+                        <button 
+                          onClick={() => showToast('升级功能正在对接支付网关，请联系客服手动升级', 'info')}
+                          className="bg-purple-600 text-white px-6 py-2 md:px-8 md:py-2.5 rounded-xl font-bold text-xs md:text-sm hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/40"
+                        >
+                          立即联系客服升级收费会员
+                        </button>
+                      </div>
+                    ) : null}
                     {analyzing ? (
                       <div className="flex flex-col items-center justify-center py-16 md:py-24 gap-4">
                         <div className="flex gap-1">

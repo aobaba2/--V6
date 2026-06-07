@@ -9,7 +9,19 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  onSnapshot, 
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  deleteDoc
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -105,22 +117,55 @@ export const getOrCreateProfile = async (user: User): Promise<UserProfile> => {
       await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
       return data;
     } else {
+      // Check if there is a pre-created user document with the same email
+      let preAssignedRole: UserRole = user.email === 'aoba2026@admin.com' ? 'admin' : 'free';
+      let foundPreCreatedId: string | null = null;
+      let preCreatedData: Partial<UserProfile> = {};
+      
+      if (user.email) {
+        try {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', user.email));
+          const querySnap = await getDocs(q);
+          if (!querySnap.empty) {
+            const preDoc = querySnap.docs[0];
+            const preData = preDoc.data() as UserProfile;
+            preAssignedRole = preData.role;
+            foundPreCreatedId = preDoc.id;
+            preCreatedData = preData;
+          }
+        } catch (err) {
+          console.error("Error searching pre-created profile:", err);
+        }
+      }
+
       const emailName = user.email ? user.email.split('@')[0] : '交易员';
       const newProfile: UserProfile = {
         uid: user.uid,
         email: user.email || '',
-        displayName: user.displayName || emailName,
-        photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid.slice(0, 5)}`,
-        role: user.email === 'aoba2026@admin.com' ? 'admin' : 'free',
-        createdAt: serverTimestamp(),
+        displayName: user.displayName || preCreatedData.displayName || emailName,
+        photoURL: user.photoURL || preCreatedData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid.slice(0, 5)}`,
+        role: preAssignedRole,
+        createdAt: preCreatedData.createdAt || serverTimestamp(),
         lastLogin: serverTimestamp(),
-        aiAnalysisCount: 0,
-        mockTradingEnabled: true,
-        favorites: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
-        followedInfluencers: ['老王', 'Sarah', '陈总'],
-        hiddenInfluencers: []
+        aiAnalysisCount: preCreatedData.aiAnalysisCount || 0,
+        mockTradingEnabled: preCreatedData.mockTradingEnabled !== undefined ? preCreatedData.mockTradingEnabled : true,
+        favorites: preCreatedData.favorites || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
+        followedInfluencers: preCreatedData.followedInfluencers || ['老王', 'Sarah', '陈总'],
+        hiddenInfluencers: preCreatedData.hiddenInfluencers || []
       };
+      
       await setDoc(userRef, newProfile);
+
+      // Clean up placeholder pre-created document if its ID was different from the active uid
+      if (foundPreCreatedId && foundPreCreatedId !== user.uid) {
+        try {
+          await deleteDoc(doc(db, 'users', foundPreCreatedId));
+        } catch (delErr) {
+          console.error("Error deleting placeholder document:", delErr);
+        }
+      }
+
       return newProfile;
     }
   } catch (error) {
