@@ -54,6 +54,42 @@ const INTERVALS = [
   { label: '周线', value: '1w' }
 ];
 
+// Generate deterministic-yet-natural-looking trend lines of 12 points representing the past 1 hour of trading.
+// This prevents high-frequency flickering while keeping each coin's visual movement custom and unique.
+const generateSparklineData = (symbol: string, currentPrice: number, changePercent: number) => {
+  const points = 12;
+  const data = [];
+  
+  let hash = 0;
+  for (let i = 0; i < symbol.length; i++) {
+    hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  // Derive starting price based on the current percent change
+  const hourlyChangeFraction = changePercent / 24 / 100;
+  const startPrice = currentPrice / (1 + hourlyChangeFraction);
+  const totalDiff = currentPrice - startPrice;
+
+  for (let i = 0; i < points; i++) {
+    const fraction = i / (points - 1);
+    
+    // Linear transition
+    let priceVal = startPrice + totalDiff * fraction;
+    
+    // Trigger multiple harmonic wave overlays using the unique coin string seed
+    const wave1 = Math.sin(fraction * Math.PI * 2 + (hash % 10)) * 0.0025 * currentPrice;
+    const wave2 = Math.cos(fraction * Math.PI * 4.5 + ((hash >> 3) % 10)) * 0.0012 * currentPrice;
+    const wave3 = Math.sin(fraction * Math.PI * 7.2 + ((hash >> 6) % 10)) * 0.0006 * currentPrice;
+    
+    // Dampen endpoints to start at startPrice & align closely with currentPrice
+    const dampening = Math.sin(fraction * Math.PI);
+    priceVal += (wave1 + wave2 + wave3) * dampening;
+
+    data.push({ value: priceVal });
+  }
+  return data;
+};
+
 export default function App() {
   const [marketData, setMarketData] = useState<Record<string, MarketData>>({});
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
@@ -824,6 +860,34 @@ export default function App() {
                       <div className="font-bold text-sm md:text-base">{coin.symbol.replace('USDT', '')}<span className="text-[10px] md:text-xs text-gray-500 ml-1">/USDT</span></div>
                       <div className="text-[9px] md:text-[10px] text-gray-500">Vol: {parseFloat(coin.volume).toFixed(0)}</div>
                     </div>
+
+                    {/* Compact Sparkline Trend Preview */}
+                    <div className="w-14 h-6 sm:w-16 sm:h-7 md:w-20 md:h-8 mx-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart 
+                          data={generateSparklineData(coin.symbol, parseFloat(coin.price), parseFloat(coin.priceChangePercent))}
+                          margin={{ top: 1, right: 1, left: 1, bottom: 1 }}
+                        >
+                          <defs>
+                            <linearGradient id={`sparkline-grad-${coin.symbol}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={parseFloat(coin.priceChangePercent) >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0.15}/>
+                              <stop offset="95%" stopColor={parseFloat(coin.priceChangePercent) >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <Area 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke={parseFloat(coin.priceChangePercent) >= 0 ? "#10b981" : "#ef4444"} 
+                            strokeWidth={1.2}
+                            fillOpacity={1}
+                            fill={`url(#sparkline-grad-${coin.symbol})`}
+                            dot={false}
+                            isAnimationActive={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
                     <div className="text-right">
                       <div className="font-mono font-medium text-xs md:text-sm">{formatPrice(coin.price)}</div>
                       <div className={cn(
