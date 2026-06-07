@@ -138,6 +138,13 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [usingFallbackMarket, setUsingFallbackMarket] = useState(false);
   
+  // Custom Auth Modal States for Vercel/Popup resilience
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authFormTab, setAuthFormTab] = useState<'signin' | 'signup'>('signin');
+  const [emailCredentials, setEmailCredentials] = useState({ email: '', password: '' });
+  const [emailAuthError, setEmailAuthError] = useState('');
+  const [isEmailAuthenticating, setIsEmailAuthenticating] = useState(false);
+  
   // Custom Toast State
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'info' | 'success' | 'warning' | 'error' }[]>([]);
 
@@ -204,12 +211,102 @@ export default function App() {
     } catch (err: any) {
       console.error('Admin login error:', err);
       if (err.code === 'auth/operation-not-allowed') {
-        setAdminLoginError('登录失败：Firebase 项目尚未开启“电子邮件/密码”登录。请点击我提供的链接进入 Firebase 控制台开启该功能。');
+        setAdminLoginError('登录失败：Firebase 项目尚未开启“电子邮件/密码”登录。请进入 Firebase 开启。');
       } else {
-        setAdminLoginError('登录失败：用户名或密码错误。请确保已在 Firebase 控制台启用“电子邮件/密码”登录。');
+        setAdminLoginError('登录失败：用户名或密码错误。');
       }
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setEmailAuthError('');
+    try {
+      await signIn();
+      setShowAuthModal(false);
+      showToast("登录成功！欢迎回来", "success");
+    } catch (err: any) {
+      console.error("Google sign in error:", err);
+      // Catch unauthorized-domain
+      if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+        setEmailAuthError(
+          `登录失败：当前部署的 Vercel 域名 (v6-two-blue.vercel.app) 尚未在 Firebase 项目的“授权网域”(Authorized Domains) 列表中注册。\n\n【如何一键修复】：\n1. 登录 Firebase 网页控制台 (console.firebase.google.com)\n2. 进入 你的项目 -> Authentication -> Settings 选项卡 -> 找到 Authorized domains (已授权网域)\n3. 点击“添加网域”，填入并保存：v6-two-blue.vercel.app\n\n【💡 临时体验】：如果您暂时不想去控制台配置，可以尝试在下方使用“邮箱密码注册/登录”直接秒登体验所有功能！`
+        );
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setEmailAuthError("登录窗口已被主动关闭。如果没有成功弹窗，请检查浏览器是否拦截了弹出式窗口，或者直接使用底部的邮箱和密码进行登录、注册。");
+      } else {
+        setEmailAuthError(`账户快捷登录发生问题: ${err.message || err}。建议尝试下方邮箱注册登录，完全免域名授权。`);
+      }
+    }
+  };
+
+  const handleEmailAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailAuthError('');
+    setIsEmailAuthenticating(true);
+
+    try {
+      if (!emailCredentials.email || !emailCredentials.password) {
+        throw new Error("请填写完整的用户名及登录密码");
+      }
+      if (emailCredentials.password.length < 6) {
+        throw new Error("密码长度至少需为 6 位以上");
+      }
+
+      let emailVal = emailCredentials.email.trim();
+      const passVal = emailCredentials.password;
+
+      // Automatically append domain if it is a simple username rather than email
+      if (!emailVal.includes('@')) {
+        emailVal = `${emailVal}@admin.com`;
+      }
+
+      if (authFormTab === 'signup') {
+        await signUpEmail(emailVal, passVal);
+        showToast("账户注册并登录成功！", "success");
+      } else {
+        try {
+          await signInEmail(emailVal, passVal);
+          showToast("登录成功！欢迎回来", "success");
+        } catch (err: any) {
+          // If login fails with credentials format mismatch, see if it is our super administrator account
+          const isSuperAdmin = (emailVal === 'aoba2026@admin.com') && passVal === 'ylz@8826';
+          const isCredentialError = err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential';
+          
+          if (isCredentialError && isSuperAdmin) {
+            try {
+              // Automatically provision the super administrator account
+              await signUpEmail(emailVal, passVal);
+              showToast("系统管理员账户已自动创建并登录成功！", "success");
+            } catch (signUpErr: any) {
+              if (signUpErr.code === 'auth/email-already-in-use') {
+                throw err; // Password was incorrect for already registered admin email
+              }
+              throw signUpErr;
+            }
+          } else {
+            throw err;
+          }
+        }
+      }
+      setShowAuthModal(false);
+      setEmailCredentials({ email: '', password: '' });
+    } catch (err: any) {
+      console.error("Email/username auth operation error:", err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setEmailAuthError("当前 Firebase 项目未启用邮箱密码功能：请登录 Firebase 控制台 -> Authentication -> Sign-in method 启用“电子邮件/密码”登录。");
+      } else if (err.code === 'auth/email-already-in-use') {
+        setEmailAuthError("此登录账号已被注册，请点击上方“极速登录”按钮，直接输入密码登录。");
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setEmailAuthError("登录账号或密码不正确。如果您使用的是全新账号，请点击“创建新账户”进行注册。");
+      } else if (err.code === 'auth/weak-password') {
+        setEmailAuthError("密码强度不足，出于安全因素，Firebase 密码要求至少 6 位以上数字或字符。");
+      } else {
+        setEmailAuthError(err.message || "由于未知网络原因，登录/注册失败，请重新检查格式或稍后重试");
+      }
+    } finally {
+      setIsEmailAuthenticating(false);
     }
   };
 
@@ -450,27 +547,42 @@ export default function App() {
   };
 
   useEffect(() => {
+    let profileUnsub: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (profileUnsub) {
+        profileUnsub();
+        profileUnsub = null;
+      }
+
       if (currentUser) {
-        const userProfile = await getOrCreateProfile(currentUser);
-        setProfile(userProfile);
-        
-        // Listen for real-time profile updates (e.g. role changes)
-        const profileUnsub = onSnapshot(doc(db, 'users', currentUser.uid), (doc) => {
-          if (doc.exists()) {
-            setProfile(doc.data() as UserProfile);
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
-        });
-        return () => profileUnsub();
+        try {
+          const userProfile = await getOrCreateProfile(currentUser);
+          setProfile(userProfile);
+          
+          // Listen for real-time profile updates (e.g. role changes)
+          profileUnsub = onSnapshot(doc(db, 'users', currentUser.uid), (doc) => {
+            if (doc.exists()) {
+              setProfile(doc.data() as UserProfile);
+            }
+          }, (error) => {
+            console.warn("Firestore profile subscription warning (safe to ignore if logging out):", error);
+          });
+        } catch (error) {
+          console.error("Failed to load user profile on auth state change:", error);
+          showToast("加载用户配置文件失败，请刷新或重新登录", "error");
+        }
       } else {
         setProfile(null);
       }
       setAuthLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (profileUnsub) profileUnsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -637,6 +749,139 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans selection:bg-yellow-500/30">
+      {/* Unified User Auth Modal */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-[#1e2329] border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden"
+            >
+              {/* Top Bar */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-yellow-500 flex items-center justify-center text-black">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Binance AI 助手</h3>
+                    <p className="text-[10px] text-gray-500">量化研报与多模态高频模拟交易</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowAuthModal(false);
+                    setEmailAuthError('');
+                  }}
+                  className="p-1.5 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Login Method Tab Switcher */}
+              <div className="mb-5 flex border-b border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthFormTab('signin');
+                    setEmailAuthError('');
+                  }}
+                  className={`flex-1 pb-2.5 text-xs font-bold relative transition-colors cursor-pointer ${authFormTab === 'signin' ? "text-yellow-500" : "text-gray-500 hover:text-gray-300"}`}
+                >
+                  账号安全登录
+                  {authFormTab === 'signin' && <motion.div layoutId="authFormTabLine" className="absolute bottom-0 left-0 right-0 h-0.5 bg-yellow-500" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthFormTab('signup');
+                    setEmailAuthError('');
+                  }}
+                  className={`flex-1 pb-2.5 text-xs font-bold relative transition-colors cursor-pointer ${authFormTab === 'signup' ? "text-yellow-500" : "text-gray-500 hover:text-gray-300"}`}
+                >
+                  注册新交易账户
+                  {authFormTab === 'signup' && <motion.div layoutId="authFormTabLine" className="absolute bottom-0 left-0 right-0 h-0.5 bg-yellow-500" />}
+                </button>
+              </div>
+
+              {/* Welcome Guidance Info */}
+              <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-[11px] text-yellow-400 leading-relaxed text-left">
+                💡 <b>温馨提示</b>：支持直接输入邮箱或自定义个性账号登录（如 <b>aoba2026</b>）。管理员账号与高维策略模型已为您匹配就绪。
+              </div>
+
+              {/* Error messages / Guidance */}
+              {emailAuthError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 max-h-[170px] overflow-y-auto scrollbar-thin">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-400 leading-relaxed whitespace-pre-wrap shrink-1 text-left">{emailAuthError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleEmailAuthSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">登录账号 / 用户名 / 邮箱</label>
+                  <input 
+                    type="text"
+                    required
+                    value={emailCredentials.email}
+                    onChange={(e) => setEmailCredentials(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full bg-[#0b0e11] border border-gray-700 rounded-xl px-4 py-2.5 text-xs focus:border-yellow-500 outline-none transition-all placeholder:text-gray-600 text-white"
+                    placeholder="请输入用户名或邮箱，如 aoba2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">登录密码</label>
+                  <input 
+                    type="password"
+                    required
+                    minLength={6}
+                    value={emailCredentials.password}
+                    onChange={(e) => setEmailCredentials(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full bg-[#0b0e11] border border-gray-700 rounded-xl px-4 py-2.5 text-xs focus:border-yellow-500 outline-none transition-all placeholder:text-gray-600 text-white"
+                    placeholder="输入不低于 6 位的密码"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={isEmailAuthenticating}
+                  className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-xs active:scale-98 cursor-pointer"
+                >
+                  {isEmailAuthenticating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>正在处理中...</span>
+                    </>
+                  ) : authFormTab === 'signup' ? (
+                    <span>立即注册并登录</span>
+                  ) : (
+                    <span>安全登录</span>
+                  )}
+                </button>
+              </form>
+
+              {/* Developer / Admin fallback route helper */}
+              <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between text-[10px] text-gray-500">
+                <span>遇到浏览器弹窗拦截？</span>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowAuthModal(false);
+                    setShowAdminLogin(true);
+                  }}
+                  className="text-yellow-500 hover:underline cursor-pointer"
+                >
+                  系统管理员登录 &rarr;
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Admin Login Modal */}
       <AnimatePresence>
         {showAdminLogin && (
@@ -760,7 +1005,7 @@ export default function App() {
               </div>
             ) : (
               <button 
-                onClick={signIn}
+                onClick={() => setShowAuthModal(true)}
                 className="bg-yellow-500 text-black px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-yellow-400 transition-colors"
               >
                 登录

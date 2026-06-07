@@ -105,11 +105,12 @@ export const getOrCreateProfile = async (user: User): Promise<UserProfile> => {
       await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
       return data;
     } else {
+      const emailName = user.email ? user.email.split('@')[0] : '交易员';
       const newProfile: UserProfile = {
         uid: user.uid,
         email: user.email || '',
-        displayName: user.displayName || '管理员',
-        photoURL: user.photoURL || '',
+        displayName: user.displayName || emailName,
+        photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid.slice(0, 5)}`,
         role: user.email === 'aoba2026@admin.com' ? 'admin' : 'free',
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
