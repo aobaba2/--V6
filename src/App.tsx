@@ -1501,142 +1501,211 @@ export default function App() {
                           <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div className="flex items-center gap-2 text-purple-400 font-bold text-xs md:text-sm">
                               <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-purple-500" />
-                              全球多源数据融合决策报告 - {selectedSymbol}
+                              {analysisResult.includes("GEMINI_API_KEY") ? '配置中心 · API 密钥绑定向导' : `全球多源数据融合决策报告 - ${selectedSymbol}`}
                             </div>
                             <span className="text-[9px] md:text-xs font-mono py-0.5 px-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-full">
-                              超强综合研判 v4.0
+                              {analysisResult.includes("GEMINI_API_KEY") ? '一分钟激活' : '超强综合研判 v4.0'}
                             </span>
                           </div>
 
-                          {/* Dynamic Visual Dashboard Block */}
-                          {parsedAnalysis.metrics && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-950/40 p-4 border border-gray-800 rounded-lg shadow-inner">
-                              
-                              {/* 1. Market Health Gauge */}
-                              <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-800/80 pb-4 md:pb-0 md:pr-4">
-                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1">
-                                  <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> 市场整体健康度
-                                </span>
-                                <div className="relative flex items-center justify-center">
-                                  {(() => {
-                                    const radius = 32;
-                                    const circ = 2 * Math.PI * radius;
-                                    const score = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.healthScore) || 50));
-                                    const offset = circ - (score / 100) * circ;
-                                    const isBully = score >= 60;
-                                    const isBeary = score <= 40;
-                                    const ringColor = isBully ? "text-emerald-500" : isBeary ? "text-red-500" : "text-yellow-500";
-                                    const ringBg = isBully ? "bg-emerald-500/5" : isBeary ? "bg-red-500/5" : "bg-yellow-500/5";
-                                    return (
-                                      <>
-                                        <svg className="w-20 h-20 md:w-24 md:h-24 transform -rotate-90">
-                                          <circle cx="48" cy="48" r={radius} className="text-gray-850" strokeWidth="5.5" stroke="currentColor" fill="transparent" />
-                                          <circle cx="48" cy="48" r={radius} className={ringColor} strokeWidth="5.5" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" stroke="currentColor" fill="transparent" />
-                                        </svg>
-                                        <div className="absolute flex flex-col items-center justify-center">
-                                          <span className="text-lg md:text-xl font-mono font-black text-white">{score}</span>
-                                          <span className={`text-[8px] md:text-[9px] font-bold ${ringColor}`}>
-                                            {isBully ? "多头强劲" : isBeary ? "空头主导" : "震荡蓄势"}
-                                          </span>
-                                        </div>
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-                                <span className="text-[9px] text-gray-500 mt-2 text-center leading-relaxed">
-                                  加权指标权重：链上[30%] 消息[25%] 技术[25%] 宏观[20%]
-                                </span>
-                              </div>
-
-                              {/* 2. Probability Distribution Grid */}
-                              <div className="flex flex-col justify-center border-b md:border-b-0 md:border-r border-gray-800/80 py-4 md:py-0 md:px-4">
-                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-3 flex items-center gap-1 self-center md:self-start">
-                                  <Activity className="w-3.5 h-3.5 text-purple-400" /> 多情境多空概率分布
-                                </span>
-                                <div className="space-y-2 text-[10px] md:text-xs">
-                                  {(() => {
-                                    const long = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.longProb) || 0));
-                                    const short = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.shortProb) || 0));
-                                    const neutral = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.neutralProb) || 0));
-                                    return (
-                                      <>
-                                        <div>
-                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
-                                            <span className="text-emerald-400 flex items-center gap-1">🟢 做多机会 (Long)</span>
-                                            <span className="font-mono text-white">{long}%</span>
-                                          </div>
-                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${long}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-emerald-500 h-1.5 rounded-full" />
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
-                                            <span className="text-red-400 flex items-center gap-1">🔴 做空倾向 (Short)</span>
-                                            <span className="font-mono text-white">{short}%</span>
-                                          </div>
-                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${short}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-red-500 h-1.5 rounded-full" />
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
-                                            <span className="text-gray-400 flex items-center gap-1">⚪ 观望策略 (Neutral)</span>
-                                            <span className="font-mono text-white">{neutral}%</span>
-                                          </div>
-                                          <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${neutral}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-gray-500 h-1.5 rounded-full" />
-                                          </div>
-                                        </div>
-                                      </>
-                                    );
-                                  })()}
+                          {analysisResult.includes("GEMINI_API_KEY") ? (
+                            <div className="space-y-4">
+                              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-xs md:text-sm text-yellow-500 flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-yellow-400" />
+                                <div>
+                                  <h4 className="font-bold text-yellow-400 text-sm mb-1">未检测到您的 GEMINI_API_KEY 环境变量</h4>
+                                  <p className="text-gray-400 leading-relaxed text-xs">
+                                    多源智能决策研判系统调用了 Google 官方的高维大语言模型作为决策引擎。当前由于部署在您的 Vercel 云空间（或其他独立托管平台），尚未绑定 API Key。只需进行简单的极速配置即可秒级激活！
+                                  </p>
                                 </div>
                               </div>
 
-                              {/* 3. Authoritative Core Metrics */}
-                              <div className="flex flex-col justify-center pt-4 md:pt-0 md:pl-4">
-                                <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1 self-center md:self-start">
-                                  <Info className="w-3.5 h-3.5 text-purple-400" /> 多源权威研判基本指标
-                                </span>
-                                <div className="space-y-2 mt-1">
-                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
-                                    <span className="text-gray-500">恐惧与贪婪指数</span>
-                                    <span className="font-mono text-white font-bold flex items-center gap-1">
-                                      {parsedAnalysis.metrics.fearGreedIndex}
-                                      {(() => {
-                                        const val = Number(parsedAnalysis.metrics.fearGreedIndex) || 50;
-                                        if (val >= 75) return <span className="text-emerald-400 text-[8px] bg-emerald-500/10 px-1 rounded font-bold">极度贪婪</span>;
-                                        if (val >= 55) return <span className="text-green-400 text-[8px] bg-green-500/10 px-1 rounded font-bold">贪婪</span>;
-                                        if (val >= 45) return <span className="text-yellow-400 text-[8px] bg-yellow-500/10 px-1 rounded font-bold">中立</span>;
-                                        if (val >= 25) return <span className="text-orange-400 text-[8px] bg-orange-500/10 px-1 rounded font-bold">恐惧</span>;
-                                        return <span className="text-red-400 text-[8px] bg-red-500/10 px-1 rounded font-bold">极度恐惧</span>;
-                                      })()}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
-                                    <span className="text-gray-500">资金费率趋势</span>
-                                    <span className="font-mono text-cyan-400 font-bold">{parsedAnalysis.metrics.fundingRate || "加载中"}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center text-[10px] md:text-xs py-1">
-                                    <span className="text-gray-500">潜在爆仓/波动风险</span>
-                                    <span className="font-mono font-bold">
-                                      {(() => {
-                                        const level = parsedAnalysis.metrics.riskLevel || "中等";
-                                        const badgeColor = level === '极高' || level === '较高' ? 'text-red-400 bg-red-500/10 border-red-500/20' : level === '较低' || level === '极低' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-                                        return <span className={`text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} font-bold`}>{level}</span>;
-                                      })()}
-                                    </span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-gray-950/60 p-4 border border-gray-800 rounded-xl">
+                                  <h4 className="font-bold text-purple-400 text-xs md:text-sm mb-3 flex items-center gap-1.5 border-b border-gray-850 pb-2">
+                                    <span className="w-4 h-4 bg-purple-500/10 text-purple-400 rounded flex items-center justify-center font-mono text-[10px]">A</span>
+                                    Vercel 托管环境绑定（推荐）
+                                  </h4>
+                                  <ol className="text-gray-400 text-[11px] md:text-xs space-y-2 list-decimal pl-4 leading-relaxed">
+                                    <li>登录您的 <a href="https://vercel.com" target="_blank" rel="noreferrer" className="text-purple-400 underline hover:text-purple-300">Vercel 仪表盘</a>，进入并选中近期部署的项目。</li>
+                                    <li>切换到 <strong className="text-gray-200">Settings</strong> (设置) 页签，然后点击左侧栏的 <strong className="text-gray-200">Environment Variables</strong>。</li>
+                                    <li>添加一条环境变量：
+                                      <div className="my-1.5 p-2 bg-black/40 rounded border border-gray-800 font-mono text-[10px] space-y-1 select-all">
+                                        <div className="flex justify-between"><span>Key (名称):</span> <span className="text-yellow-400 font-bold">GEMINI_API_KEY</span></div>
+                                        <div className="flex justify-between"><span>Value (数值):</span> <span className="text-gray-400">填入您的 API Key 字符串</span></div>
+                                      </div>
+                                    </li>
+                                    <li>保存后点击 <strong className="text-gray-200">Deployments</strong>，找到最近的一次部署点击右侧三点，点击 <strong className="text-purple-400">Redeploy (重新部署)</strong> 即可完美上线！</li>
+                                  </ol>
+                                </div>
+
+                                <div className="bg-gray-950/60 p-4 border border-gray-800 rounded-xl">
+                                  <h4 className="font-bold text-purple-400 text-xs md:text-sm mb-3 flex items-center gap-1.5 border-b border-gray-850 pb-2">
+                                    <span className="w-4 h-4 bg-purple-500/10 text-purple-400 rounded flex items-center justify-center font-mono text-[10px]">B</span>
+                                    100% 免费自助创建 Google API Key
+                                  </h4>
+                                  <div className="space-y-3 text-gray-400 text-[11px] md:text-xs leading-relaxed">
+                                    <p>如果您还没有 Gemini Key，Google 官方提供了免费的测试额度：</p>
+                                    <ol className="list-decimal pl-4 space-y-1">
+                                      <li>电脑端访问 <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-cyan-400 underline hover:text-cyan-300 font-bold">Google AI Studio</a>。</li>
+                                      <li>点击 <strong className="text-gray-200">Create API Key</strong> 创建新密钥。</li>
+                                      <li>复制该密钥并在第一步中填入到 Vercel (通常以 <code className="bg-gray-850 px-1 py-0.5 rounded text-yellow-400">AIzaSy...</code> 开头)。</li>
+                                    </ol>
+                                    <div className="pt-2 flex flex-wrap gap-2">
+                                      <a 
+                                        href="https://aistudio.google.com/" 
+                                        target="_blank" 
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] md:text-xs px-3 py-1.5 rounded-lg transition-all"
+                                      >
+                                        免费申请 API Key →
+                                      </a>
+                                      <a 
+                                        href="https://vercel.com" 
+                                        target="_blank" 
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold text-[10px] md:text-xs px-3 py-1.5 rounded-lg transition-all"
+                                      >
+                                        前往 Vercel 控制台 ↗
+                                      </a>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-
                             </div>
-                          )}
+                          ) : (
+                            <>
+                              {/* Dynamic Visual Dashboard Block */}
+                              {parsedAnalysis.metrics && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-950/40 p-4 border border-gray-800 rounded-lg shadow-inner">
+                                  
+                                  {/* 1. Market Health Gauge */}
+                                  <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-800/80 pb-4 md:pb-0 md:pr-4">
+                                    <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1">
+                                      <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> 市场整体健康度
+                                    </span>
+                                    <div className="relative flex items-center justify-center">
+                                      {(() => {
+                                        const radius = 32;
+                                        const circ = 2 * Math.PI * radius;
+                                        const score = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.healthScore) || 50));
+                                        const offset = circ - (score / 100) * circ;
+                                        const isBully = score >= 60;
+                                        const isBeary = score <= 40;
+                                        const ringColor = isBully ? "text-emerald-500" : isBeary ? "text-red-500" : "text-yellow-500";
+                                        const ringBg = isBully ? "bg-emerald-500/5" : isBeary ? "bg-red-500/5" : "bg-yellow-500/5";
+                                        return (
+                                          <>
+                                            <svg className="w-20 h-20 md:w-24 md:h-24 transform -rotate-90">
+                                              <circle cx="48" cy="48" r={radius} className="text-gray-850" strokeWidth="5.5" stroke="currentColor" fill="transparent" />
+                                              <circle cx="48" cy="48" r={radius} className={ringColor} strokeWidth="5.5" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" stroke="currentColor" fill="transparent" />
+                                            </svg>
+                                            <div className="absolute flex flex-col items-center justify-center">
+                                              <span className="text-lg md:text-xl font-mono font-black text-white">{score}</span>
+                                              <span className={`text-[8px] md:text-[9px] font-bold ${ringColor}`}>
+                                                {isBully ? "多头强劲" : isBeary ? "空头主导" : "震荡蓄势"}
+                                              </span>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                    <span className="text-[9px] text-gray-500 mt-2 text-center leading-relaxed">
+                                      加权指标权重：链上[30%] 消息[25%] 技术[25%] 宏观[20%]
+                                    </span>
+                                  </div>
 
-                          {/* Markdown report contents */}
-                          <div className="markdown-body text-gray-300 leading-relaxed text-xs md:text-sm border-t border-gray-800 pt-4">
-                            <Markdown>{parsedAnalysis.markdown}</Markdown>
-                          </div>
+                                  {/* 2. Probability Distribution Grid */}
+                                  <div className="flex flex-col justify-center border-b md:border-b-0 md:border-r border-gray-800/80 py-4 md:py-0 md:px-4">
+                                    <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-3 flex items-center gap-1 self-center md:self-start">
+                                      <Activity className="w-3.5 h-3.5 text-purple-400" /> 多情境多空概率分布
+                                    </span>
+                                    <div className="space-y-2 text-[10px] md:text-xs">
+                                      {(() => {
+                                        const long = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.longProb) || 0));
+                                        const short = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.shortProb) || 0));
+                                        const neutral = Math.max(0, Math.min(100, Number(parsedAnalysis.metrics.neutralProb) || 0));
+                                        return (
+                                          <>
+                                            <div>
+                                              <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                                <span className="text-emerald-400 flex items-center gap-1">🟢 做多机会 (Long)</span>
+                                                <span className="font-mono text-white">{long}%</span>
+                                              </div>
+                                              <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${long}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-emerald-500 h-1.5 rounded-full" />
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                                <span className="text-red-400 flex items-center gap-1">🔴 做空倾向 (Short)</span>
+                                                <span className="font-mono text-white">{short}%</span>
+                                              </div>
+                                              <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${short}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-red-500 h-1.5 rounded-full" />
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <div className="flex justify-between text-gray-400 mb-0.5 font-bold">
+                                                <span className="text-gray-400 flex items-center gap-1">⚪ 观望策略 (Neutral)</span>
+                                                <span className="font-mono text-white">{neutral}%</span>
+                                              </div>
+                                              <div className="w-full bg-gray-850 rounded-full h-1.5 overflow-hidden">
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${neutral}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-gray-500 h-1.5 rounded-full" />
+                                              </div>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* 3. Authoritative Core Metrics */}
+                                  <div className="flex flex-col justify-center pt-4 md:pt-0 md:pl-4">
+                                    <span className="text-[10px] md:text-xs font-bold text-gray-400 mb-2.5 flex items-center gap-1 self-center md:self-start">
+                                      <Info className="w-3.5 h-3.5 text-purple-400" /> 多源权威研判基本指标
+                                    </span>
+                                    <div className="space-y-2 mt-1">
+                                      <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
+                                        <span className="text-gray-500">恐惧与贪婪指数</span>
+                                        <span className="font-mono text-white font-bold flex items-center gap-1">
+                                          {parsedAnalysis.metrics.fearGreedIndex}
+                                          {(() => {
+                                            const val = Number(parsedAnalysis.metrics.fearGreedIndex) || 50;
+                                            if (val >= 75) return <span className="text-emerald-400 text-[8px] bg-emerald-500/10 px-1 rounded font-bold">极度贪婪</span>;
+                                            if (val >= 55) return <span className="text-green-400 text-[8px] bg-green-500/10 px-1 rounded font-bold">贪婪</span>;
+                                            if (val >= 45) return <span className="text-yellow-400 text-[8px] bg-yellow-500/10 px-1 rounded font-bold">中立</span>;
+                                            if (val >= 25) return <span className="text-orange-400 text-[8px] bg-orange-500/10 px-1 rounded font-bold">恐惧</span>;
+                                            return <span className="text-red-400 text-[8px] bg-red-500/10 px-1 rounded font-bold">极度恐惧</span>;
+                                          })()}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-[10px] md:text-xs py-1 border-b border-gray-850">
+                                        <span className="text-gray-500">资金费率趋势</span>
+                                        <span className="font-mono text-cyan-400 font-bold">{parsedAnalysis.metrics.fundingRate || "加载中"}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-[10px] md:text-xs py-1">
+                                        <span className="text-gray-500">潜在爆仓/波动风险</span>
+                                        <span className="font-mono font-bold">
+                                          {(() => {
+                                            const level = parsedAnalysis.metrics.riskLevel || "中等";
+                                            const badgeColor = level === '极高' || level === '较高' ? 'text-red-400 bg-red-500/10 border-red-500/20' : level === '较低' || level === '极低' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+                                            return <span className={`text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} font-bold`}>{level}</span>;
+                                          })()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              )}
+
+                              {/* Markdown report contents */}
+                              <div className="markdown-body text-gray-300 leading-relaxed text-xs md:text-sm border-t border-gray-800 pt-4">
+                                <Markdown>{parsedAnalysis.markdown}</Markdown>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     ) : (
